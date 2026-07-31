@@ -1,0 +1,41 @@
+{
+  "dataset_samples_loaded": 5000,
+  "train_samples": 4000,
+  "eval_samples": 1000,
+  "epochs": 5,
+  "train_duration_seconds": 158.22,
+  "epoch_losses": [
+    23.1101,
+    0.0,
+    97.0905,
+    18.0403,
+    0.0
+  ],
+  "metrics": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "per_entity": {
+      "SYMPTOM": {
+        "p": 1.0,
+        "r": 1.0,
+        "f": 1.0
+      },
+      "MEDICATION": {
+        "p": 1.0,
+        "r": 1.0,
+        "f": 1.0
+      },
+      "DIAGNOSIS": {
+        "p": 1.0,
+        "r": 1.0,
+        "f": 1.0
+      }
+    }
+  },
+  "pipeline_eval": {
+    "processed": 20,
+    "success_rate": 1.0,
+    "avg_entities_extracted": 2.65
+  }
+}

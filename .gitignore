@@ -1,0 +1,7 @@
+dataset/
+models/
+chat_history.jsonl
+__pycache__/
+.pytest_cache/
+*.pyc
+.env

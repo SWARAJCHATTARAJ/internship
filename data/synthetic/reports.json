@@ -1,0 +1,42 @@
+[
+    {
+        "id": "R000001",
+        "text": "Patient admitted with abdominal pain. Diagnosed with Diabetes Mellitus. Treated with Metformin."
+    },
+    {
+        "id": "R000002",
+        "text": "Patient admitted with shortness of breath. Diagnosed with Hypertension. Treated with Amlodipine."
+    },
+    {
+        "id": "R000003",
+        "text": "Patient admitted with headache. Diagnosed with Acute Myocardial Infarction. Treated with Aspirin."
+    },
+    {
+        "id": "R000004",
+        "text": "Patient admitted with back pain. Diagnosed with Hypertension. Treated with Amlodipine."
+    },
+    {
+        "id": "R000005",
+        "text": "Patient admitted with abdominal pain. Diagnosed with Stroke. Treated with Clopidogrel."
+    },
+    {
+        "id": "R000006",
+        "text": "Patient admitted with shortness of breath. Diagnosed with Diabetes Mellitus. Treated with Metformin."
+    },
+    {
+        "id": "R000007",
+        "text": "Patient admitted with chest pain. Diagnosed with Diabetes Mellitus. Treated with Metformin."
+    },
+    {
+        "id": "R000008",
+        "text": "Patient admitted with headache. Diagnosed with Hypertension. Treated with Amlodipine."
+    },
+    {
+        "id": "R000009",
+        "text": "Patient admitted with headache. Diagnosed with Pneumonia. Treated with Azithromycin."
+    },
+    {
+        "id": "R000010",
+        "text": "Patient admitted with headache. Diagnosed with Acute Myocardial Infarction. Treated with Aspirin."
+    }
+]
