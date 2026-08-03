@@ -1,7 +1,58 @@
-dataset/
-models/
-chat_history.jsonl
+# Python bytecode
 __pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+.venv_train/
+venv/
+env/
+ENV/
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test / coverage
 .pytest_cache/
-*.pyc
+.coverage
+.coverage.*
+htmlcov/
+
+# Jupyter / notebooks
+.ipynb_checkpoints/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.svg
+*.webp
+
+# Project-specific generated artifacts
+internship/models/
+internship/data/
+*.log
+
+# Environment files / secrets
 .env
+.env.*
+!.env.example
+
+# Node
+node_modules/
