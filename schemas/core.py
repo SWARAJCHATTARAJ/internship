@@ -15,7 +15,7 @@ class ExtractedEntity(BaseModel):
     start_char: int
     end_char: int
     confidence: float = 1.0
-    extraction_source: Literal["scispaCy", "LLM_fallback", "custom_spacy_model"] = "scispaCy"
+    extraction_source: Literal["scispaCy", "LLM_fallback", "custom_spacy_model", "REGEX"] = "scispaCy"
     grounding: Optional[GroundedConcept] = None
 
 class Relation(BaseModel):
@@ -24,10 +24,17 @@ class Relation(BaseModel):
     target_entity_id: str
     relation_type: Literal["CAUSES", "TREATS", "INDICATES", "TEMPORAL_BEFORE", "TEMPORAL_AFTER"]
 
+class TimelineEvent(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    event: str
+    entity_refs: List[str] = Field(default_factory=list)
+    normalized_time_or_offset: Optional[str] = None
+    confidence: float = Field(ge=0.0, le=1.0)
+
 class VerifierFlag(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     entity_or_relation_id: Optional[str] = None
-    check_type: Literal["DRUG_PLAUSIBILITY", "LAB_RANGE", "DIAGNOSIS_ENTAILMENT"]
+    check_type: Literal["DRUG_PLAUSIBILITY", "LAB_RANGE", "DIAGNOSIS_ENTAILMENT", "FHIR_SCHEMA"]
     status: Literal["NEEDS_REVIEW", "CONTRADICTION", "INSUFFICIENT_EVIDENCE"]
     justification: str
     confidence_score: float = Field(ge=0.0, le=1.0)
@@ -44,10 +51,14 @@ class AuditEvent(BaseModel):
 class ReportState(BaseModel):
     document_id: str
     original_text: str
+    source_text: Optional[str] = None
     execution_plan: List[str] = Field(default_factory=list)
     extracted_entities: List[ExtractedEntity] = Field(default_factory=list)
     relations: List[Relation] = Field(default_factory=list)
+    timeline: List[TimelineEvent] = Field(default_factory=list)
     verifier_flags: List[VerifierFlag] = Field(default_factory=list)
     audit_trail: List[AuditEvent] = Field(default_factory=list)
     summary: Optional[str] = None
+    fhir_draft: Optional[Dict[str, Any]] = None
+    trained_model_used: bool = False
     replan_count: int = 0

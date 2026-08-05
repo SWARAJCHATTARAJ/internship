@@ -56,3 +56,19 @@ internship/data/
 
 # Node
 node_modules/
+frontend/node_modules/
+
+# Tests and temporary artifacts
+tests/
+internship/tests/
+.pytest_cache/
+
+# Local temporary files
+tmp_fastapi/
+
+# Project documents / large non-code files
+Project_Documentation.pdf
+Project_Documentation_Final.pdf
+image.png
+Workflow_1.jpg
+package-lock.json

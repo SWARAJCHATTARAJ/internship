@@ -136,10 +136,11 @@ export default function ClinicalAgentDemo() {
     runStartedAt.current = Date.now();
     setActiveStep("orchestrator");
 
+    const backendEndpoint = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
     // Call the actual FastAPI Backend!
     let backendResult = null;
     try {
-      const response = await fetch("http://localhost:8000/process", {
+      const response = await fetch(`${backendEndpoint}/process`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ document_id: newCaseId, text: reportText })
@@ -148,7 +149,7 @@ export default function ClinicalAgentDemo() {
       backendResult = await response.json();
     } catch (e) {
       console.error(e);
-      alert("Failed to connect to backend at http://localhost:8000/process.\\nMake sure your FastAPI server (api/main.py) is running!");
+      alert(`Failed to connect to backend at ${backendEndpoint}/process.\nMake sure your FastAPI server (api/main.py) is running!`);
       setIsProcessing(false);
       setActiveStep(null);
       return;

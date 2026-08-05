@@ -5,11 +5,11 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Dict, Any
 
 from schemas.core import ReportState
 from agents.orchestrator import graph
 from data.db import save_report, get_report
+from tools.preprocessing import mask_phi, normalize_clinical_text
 
 app = FastAPI(title="Clinical Report Understanding API")
 
@@ -31,14 +31,16 @@ async def process_report(request: ProcessRequest):
     """
     Endpoint to process a clinical report through the multi-agent graph.
     """
+    masked_text, _ = mask_phi(request.text)
+    normalized_text = normalize_clinical_text(masked_text)
     initial_state = ReportState(
         document_id=request.document_id,
-        original_text=request.text
+        original_text=request.text,
+        source_text=request.text,
     )
-    
+
     try:
         final_state = graph.invoke(initial_state)
-        # LangGraph returns a dict when state is BaseModel wrapped
         state_obj = ReportState(**final_state)
         save_report(state_obj)
         return final_state
