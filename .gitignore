@@ -5,3 +5,5 @@ __pycache__/
 .pytest_cache/
 *.pyc
 .env
+md_to_pdf.py
+Project_Documentation_Final copy.pdf
