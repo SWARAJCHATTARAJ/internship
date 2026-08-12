@@ -11,6 +11,19 @@ This project is a clinical report understanding platform built as a multi-agent 
 
 The system exposes a FastAPI backend and a Vite + React frontend. A SpaCy training pipeline generates a custom clinical NER model from the dataset.
 
+## OCR document intake
+
+The application also accepts scanned clinical documents through `POST /process/upload`. Supported inputs are PDF (including multi-page PDFs), PNG, JPG, and JPEG. The endpoint validates file signatures rather than trusting the file extension, converts PDF pages to images, applies conservative image enhancement, uses Tesseract's built-in text detection/recognition, and records word bounding boxes and confidence when available.
+
+```text
+Frontend upload → API → OCR → preprocessing → NER → Relation → Grounding
+→ Timeline → Summary → Verifier → SQLite → API response → Frontend
+```
+
+Use multipart form data with `document_id` and `file`; the response remains a `ReportState` and includes `ocr_result`, `source_file`, and `source_type`. Text submissions to `POST /process` remain unchanged and bypass OCR. The React input panel can submit either report text or an uploaded supported document.
+
+OCR dependencies are Pillow, PyMuPDF, pytesseract, and the system `tesseract-ocr` package (included in the backend image). Run the OCR and regression suite with `pytest`.
+
 ## Architecture
 - **Backend**: FastAPI API in `api/main.py`
 - **Agent orchestration**: `agents/orchestrator.py` using LangGraph-style workflow

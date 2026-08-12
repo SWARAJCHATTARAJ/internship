@@ -48,10 +48,36 @@ class AuditEvent(BaseModel):
     action_type: str
     details: Dict[str, Any] = Field(default_factory=dict)
 
+class OCRRegion(BaseModel):
+    text: str
+    confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    bbox: Optional[List[int]] = None
+
+class OCRPage(BaseModel):
+    page_number: int
+    text: str = ""
+    confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    regions: List[OCRRegion] = Field(default_factory=list)
+    error: Optional[str] = None
+
+class OCRResult(BaseModel):
+    success: bool
+    text: str = ""
+    pages: List[OCRPage] = Field(default_factory=list)
+    overall_confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    source_type: Optional[str] = None
+    pages_processed: int = 0
+    pages_failed: int = 0
+    warnings: List[str] = Field(default_factory=list)
+    errors: List[str] = Field(default_factory=list)
+
 class ReportState(BaseModel):
     document_id: str
     original_text: str
     source_text: Optional[str] = None
+    source_type: Optional[str] = None
+    source_file: Optional[str] = None
+    ocr_result: Optional[OCRResult] = None
     execution_plan: List[str] = Field(default_factory=list)
     extracted_entities: List[ExtractedEntity] = Field(default_factory=list)
     relations: List[Relation] = Field(default_factory=list)

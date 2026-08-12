@@ -49,12 +49,14 @@ const SAMPLES = [
 
 const STEP_DEFS = [
   { id: "orchestrator", num: "01", label: "Orchestrator", detail: "Routes by report complexity" },
-  { id: "ner", num: "02", label: "NER agent", detail: "Entity + span extraction", specialist: true },
-  { id: "relation", num: "03", label: "Relation agent", detail: "Causal + temporal links", specialist: true },
-  { id: "grounding", num: "04", label: "Grounding agent", detail: "SNOMED / RxNorm mapping", specialist: true },
-  { id: "summary", num: "05", label: "Summary agent", detail: "Narrative generation", specialist: true },
-  { id: "verifier", num: "06", label: "Verifier / critic", detail: "Consistency checks" },
-  { id: "done", num: "07", label: "Audit trail", detail: "Immutable log persisted" },
+  { id: "ocr", num: "02", label: "OCR agent", detail: "Document-to-text gateway", specialist: true },
+  { id: "ner", num: "03", label: "NER agent", detail: "Entity + span extraction", specialist: true },
+  { id: "relation", num: "04", label: "Relation agent", detail: "Causal + temporal links", specialist: true },
+  { id: "timeline", num: "05", label: "Timeline agent", detail: "Clinical event ordering", specialist: true },
+  { id: "grounding", num: "06", label: "Grounding agent", detail: "SNOMED / RxNorm mapping", specialist: true },
+  { id: "summary", num: "07", label: "Summary agent", detail: "Narrative generation", specialist: true },
+  { id: "verifier", num: "08", label: "Verifier / critic", detail: "Consistency checks" },
+  { id: "done", num: "09", label: "Audit trail", detail: "Immutable log persisted" },
 ];
 
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -69,6 +71,7 @@ function makeCaseId() {
 export default function ClinicalAgentDemo() {
   const [sampleId, setSampleId] = useState(SAMPLES[0].id);
   const [reportText, setReportText] = useState(SAMPLES[0].text);
+  const [uploadedFile, setUploadedFile] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeStep, setActiveStep] = useState(null);
   const [completedSteps, setCompletedSteps] = useState([]);
@@ -140,12 +143,20 @@ export default function ClinicalAgentDemo() {
     // Call the actual FastAPI Backend!
     let backendResult = null;
     try {
-      const response = await fetch(`${backendEndpoint}/process`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ document_id: newCaseId, text: reportText })
-      });
-      if (!response.ok) throw new Error("API request failed");
+      const response = uploadedFile
+        ? await fetch(`${backendEndpoint}/process/upload`, {
+            method: "POST",
+            body: (() => { const form = new FormData(); form.append("document_id", newCaseId); form.append("file", uploadedFile); return form; })(),
+          })
+        : await fetch(`${backendEndpoint}/process`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ document_id: newCaseId, text: reportText }),
+          });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail?.errors?.join(", ") || "API request failed");
+      }
       backendResult = await response.json();
     } catch (e) {
       console.error(e);
@@ -177,6 +188,7 @@ export default function ClinicalAgentDemo() {
 
     
     const backendOutputs = {
+      ocr: backendResult.ocr_result,
       ner: extractedNer,
       relation: extractedRelations,
       grounding: extractedGrounding,
@@ -190,7 +202,10 @@ export default function ClinicalAgentDemo() {
     
     // Extract plan from backend, map agent names to UI steps (e.g. ner_agent -> ner)
     const execPlan = backendResult.execution_plan || [];
-    const dispatchSteps = execPlan.map(a => a.replace("_agent", ""));
+    const dispatchSteps = [
+      ...(backendResult.ocr_result ? ["ocr"] : []),
+      ...execPlan.map(a => a.replace("_agent", "")),
+    ];
     setDispatched(dispatchSteps);
     markDone("orchestrator");
     
@@ -212,6 +227,9 @@ export default function ClinicalAgentDemo() {
       if (agentId === "ner") {
         setCounts((c) => ({ ...c, entities: extractedNer.length }));
         pushEvent({ agent: "NER agent", type: "extraction", summary: `Extracted ${extractedNer.length} entities` });
+      }
+      if (agentId === "ocr") {
+        pushEvent({ agent: "OCR agent", type: "recognition", summary: `Extracted ${backendResult.ocr_result.pages_processed} page(s) at ${(backendResult.ocr_result.overall_confidence ?? 0).toFixed(2)} confidence` });
       }
       if (agentId === "relation") {
         setCounts((c) => ({ ...c, relations: extractedRelations.length }));
@@ -335,6 +353,8 @@ export default function ClinicalAgentDemo() {
             selectSample={selectSample}
             reportText={reportText}
             setReportText={setReportText}
+            uploadedFile={uploadedFile}
+            setUploadedFile={setUploadedFile}
             isProcessing={isProcessing}
             runPipeline={runPipeline}
           />
@@ -431,7 +451,7 @@ function PanelShell({ title, index, children, corner }) {
   );
 }
 
-function InputPanel({ sampleId, selectSample, reportText, setReportText, isProcessing, runPipeline }) {
+function InputPanel({ sampleId, selectSample, reportText, setReportText, uploadedFile, setUploadedFile, isProcessing, runPipeline }) {
   return (
     <PanelShell title="Input" index="—">
       <label style={fieldLabel}>Sample report</label>
@@ -451,6 +471,16 @@ function InputPanel({ sampleId, selectSample, reportText, setReportText, isProce
         rows={15}
         style={textareaStyle}
       />
+
+      <label style={{ ...fieldLabel, marginTop: "16px" }}>Or upload PDF / PNG / JPG</label>
+      <input
+        type="file"
+        accept="application/pdf,image/png,image/jpeg"
+        disabled={isProcessing}
+        onChange={(e) => setUploadedFile(e.target.files?.[0] || null)}
+        style={{ width: "100%", color: T.textDim, fontFamily: FONT_MONO, fontSize: "11px" }}
+      />
+      {uploadedFile && <div style={{ fontFamily: FONT_MONO, fontSize: "10px", color: T.accent, marginTop: "6px" }}>OCR source: {uploadedFile.name}</div>}
 
       <button
         onClick={runPipeline}
@@ -568,6 +598,13 @@ function LedgerRow({ step, status, inspectable, expanded, onToggle, output }) {
 function StepOutput({ stepId, output }) {
   const box = { border: `1px solid ${T.border}`, background: T.panelAlt, padding: "10px 12px", borderRadius: "2px" };
   const rowText = { fontFamily: FONT_MONO, fontSize: "11px", color: T.textDim, lineHeight: 1.7 };
+
+  if (stepId === "ocr") {
+    return <div style={box}>
+      <div style={rowText}>confidence: {output.overall_confidence?.toFixed(2) ?? "unavailable"} · pages: {output.pages_processed} processed / {output.pages_failed} failed</div>
+      <div style={{ ...rowText, marginTop: "6px", whiteSpace: "pre-wrap" }}>{output.text || output.warnings?.join("; ")}</div>
+    </div>;
+  }
 
   if (stepId === "ner") {
     return (

@@ -61,6 +61,8 @@ frontend/node_modules/
 # Tests and temporary artifacts
 tests/
 internship/tests/
+!tests/
+!tests/test_ocr.py
 .pytest_cache/
 
 # Local temporary files
