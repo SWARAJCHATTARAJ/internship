@@ -15,9 +15,9 @@ def orchestrator_node(state: ReportState) -> dict:
     keywords = ["medication", "lab", "procedure", "diagnos", "history"]
     keyword_count = sum(1 for kw in keywords if kw in text)
 
-    if length > 50 or keyword_count >= 2:
+    if length > 30 or keyword_count >= 1 or state.ocr_result is not None:
         plan = ["ner_agent", "relation_agent", "timeline_agent", "grounding_agent", "summary_agent", "verifier_agent"]
-        reasoning = f"Complex report detected (length={length}, keywords={keyword_count}). Routing to full specialist suite."
+        reasoning = f"Complex / Intake report detected (length={length}, keywords={keyword_count}, ocr={state.ocr_result is not None}). Routing to full specialist suite."
     else:
         plan = ["ner_agent"]
         reasoning = f"Simple report detected (length={length}, keywords={keyword_count}). Routing to NER only."

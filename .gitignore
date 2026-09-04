@@ -47,6 +47,8 @@ Thumbs.db
 # Project-specific generated artifacts
 internship/models/
 internship/data/
+data/*.db
+*.db
 *.log
 
 # Environment files / secrets

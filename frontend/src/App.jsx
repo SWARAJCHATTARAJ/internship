@@ -109,6 +109,7 @@ export default function ClinicalAgentDemo() {
     const s = SAMPLES.find((x) => x.id === id);
     setSampleId(id);
     setReportText(s.text);
+    setUploadedFile(null);
     resetRun();
   }
 
@@ -155,12 +156,15 @@ export default function ClinicalAgentDemo() {
           });
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(error.detail?.errors?.join(", ") || "API request failed");
+        const detailMsg = typeof error.detail === 'object'
+          ? (error.detail?.errors?.join(", ") || error.detail?.warnings?.join(", ") || JSON.stringify(error.detail))
+          : (error.detail || "API request failed");
+        throw new Error(detailMsg);
       }
       backendResult = await response.json();
     } catch (e) {
       console.error(e);
-      alert(`Failed to connect to backend at ${backendEndpoint}/process.\nMake sure your FastAPI server (api/main.py) is running!`);
+      alert(`Backend Error: ${e.message || "Failed to connect to backend"}`);
       setIsProcessing(false);
       setActiveStep(null);
       return;
@@ -480,7 +484,18 @@ function InputPanel({ sampleId, selectSample, reportText, setReportText, uploade
         onChange={(e) => setUploadedFile(e.target.files?.[0] || null)}
         style={{ width: "100%", color: T.textDim, fontFamily: FONT_MONO, fontSize: "11px" }}
       />
-      {uploadedFile && <div style={{ fontFamily: FONT_MONO, fontSize: "10px", color: T.accent, marginTop: "6px" }}>OCR source: {uploadedFile.name}</div>}
+      {uploadedFile && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "6px" }}>
+          <div style={{ fontFamily: FONT_MONO, fontSize: "10px", color: T.accent }}>OCR source: {uploadedFile.name}</div>
+          <button
+            type="button"
+            onClick={() => setUploadedFile(null)}
+            style={{ background: "none", border: "none", color: T.danger, fontFamily: FONT_MONO, fontSize: "10px", cursor: "pointer" }}
+          >
+            [ Clear File ]
+          </button>
+        </div>
+      )}
 
       <button
         onClick={runPipeline}
