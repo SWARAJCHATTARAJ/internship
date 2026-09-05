@@ -31,7 +31,7 @@ def test_invalid_entity_label_raises_error():
     with pytest.raises(ValidationError):
         ExtractedEntity(
             text="headache",
-            label="NOT_A_VALID_LABEL",
+            label="NOT_A_VALID_LABEL",  # pyright: ignore[reportArgumentType]
             start_char=0,
             end_char=8
         )

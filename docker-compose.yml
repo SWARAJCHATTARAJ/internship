@@ -5,23 +5,31 @@ services:
       dockerfile: Dockerfile
     ports:
       - '8000:8000'
+    env_file:
+      - .env
     volumes:
       - ./models:/app/models
       - ./dataset:/app/dataset:ro
       - ./data:/app/data
     environment:
       - PIP_DISABLE_PIP_VERSION_CHECK=1
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:8000}
     ports:
-      - '5173:5173'
+      - '5173:80'
     depends_on:
       backend:
         condition: service_started
-    environment:
-      - VITE_BACKEND_URL=http://backend:8000
     restart: unless-stopped

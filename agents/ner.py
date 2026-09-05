@@ -1,7 +1,7 @@
 import os
 import re
 from typing import List
-from schemas.core import ReportState, ExtractedEntity, AuditEvent
+from schemas.core import ReportState, ExtractedEntity, AuditEvent, EntityLabel, SourceEvidence
 
 try:
     # pyrefly: ignore [missing-import]
@@ -66,7 +66,7 @@ def find_regex_entities(text: str) -> List[ExtractedEntity]:
     medication_names = [
         "metformin", "lisinopril", "amlodipine", "aspirin", "azithromycin",
         "clopidogrel", "ibuprofen", "furosemide", "amoxicillin", "apixaban",
-        "loratadine"
+        "loratadine", "paracetamol", "acetaminophen", "cetirizine", "vitamin c", "ors"
     ]
     med_pattern = re.compile(
         rf"\b(?P<name>{'|'.join(map(re.escape, medication_names))})\b"
@@ -97,6 +97,14 @@ def find_regex_entities(text: str) -> List[ExtractedEntity]:
             end_char=m.end(),
             extraction_source="REGEX"
         ))
+
+    symptom_pattern = re.compile(r"\b(?:fever|cough|headache|body ache|nausea|vomiting|pain|fatigue|dizziness)\b", re.I)
+    for m in symptom_pattern.finditer(text):
+        entities.append(ExtractedEntity(text=m.group(0), label="SYMPTOM", start_char=m.start(), end_char=m.end(), extraction_source="REGEX"))
+
+    diagnosis_pattern = re.compile(r"\b(?:diabetes(?: mellitus)?|hypertension|pneumonia|asthma|viral upper respiratory tract infection|common cold)\b", re.I)
+    for m in diagnosis_pattern.finditer(text):
+        entities.append(ExtractedEntity(text=m.group(0), label="DIAGNOSIS", start_char=m.start(), end_char=m.end(), extraction_source="REGEX"))
 
     return entities
 
@@ -136,7 +144,7 @@ def normalize_entities(text: str, entities: List[ExtractedEntity]) -> List[Extra
     return normalized
 
 
-def normalize_label(label: str) -> str:
+def normalize_label(label: str) -> EntityLabel:
     label_upper = (label or "").upper()
     if label_upper in {"MEDICATION", "DRUG", "MEDICINE"}:
         return "MEDICATION"
@@ -199,26 +207,39 @@ def ner_agent(state: ReportState) -> dict:
     regex_entities = find_regex_entities(state.original_text)
     if regex_entities:
         extracted.extend(regex_entities)
-        audit_trail.append(AuditEvent(
-            agent_name="ner_agent",
-            action_type="REGEX_POSTPROCESSING",
-            details={"message": f"Added {len(regex_entities)} normalized entities from regex patterns."}
-        ))
 
     extracted = normalize_entities(state.original_text, extracted)
 
-    # 3. Dynamic Routing: check if multiple drugs are present
+    # Attach observable source evidence. Bounding boxes are preserved when OCR
+    # supplied a matching word/region; no unsupported location is fabricated.
+    source_kind = "ocr" if state.ocr_result else ("native_text" if state.source_type == "pdf" else "user_text")
+    for entity in extracted:
+        evidence = SourceEvidence(source_kind=source_kind, text_span=[entity.start_char, entity.end_char])
+        if state.ocr_result:
+            evidence.ocr_confidence = state.ocr_result.overall_confidence
+            for page in state.ocr_result.pages:
+                if entity.text.lower() in page.text.lower():
+                    evidence.page_number = page.page_number
+                    for region in page.regions:
+                        if entity.text.lower() in region.text.lower():
+                            evidence.bbox = region.bbox
+                            evidence.ocr_confidence = region.confidence or page.confidence
+                            break
+                    break
+        entity.provenance = evidence
+
+    # 3. Dynamic Routing: ask the orchestrator's medication specialist when needed.
     drug_count = sum(1 for e in extracted if e.label == "MEDICATION")
     
     drug_names = ["metformin", "amlodipine", "aspirin", "azithromycin", "clopidogrel", "ibuprofen"]
     drug_count += sum(1 for e in extracted if e.text.lower() in drug_names and e.label != "MEDICATION")
 
-    if drug_count >= 1 and "drug_agent" not in execution_plan:
+    if drug_count >= 1 and "drug_agent" not in execution_plan and "medication_agent" not in execution_plan:
         execution_plan.insert(execution_plan.index("ner_agent") + 1, "drug_agent")
         audit_trail.append(AuditEvent(
             agent_name="ner_agent",
             action_type="PLAN_UPDATE",
-            details={"message": "Detected drug entities. Added drug_agent to execution plan."}
+            details={"message": "Detected drug entities. Added medication specialist (legacy alias: drug_agent) to execution plan."}
         ))
     
     trained_model_used = bool(spacy_entities) and not used_fallback

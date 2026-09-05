@@ -120,6 +120,59 @@ cd ..
 ```
 
 ## Running the system
+
+## Run with Docker
+
+Docker is the supported way to run the complete application. It installs Python, Node.js, Tesseract OCR, and all project dependencies inside containers; no local Python, Node.js, npm, pip, or Tesseract installation is needed.
+
+### Prerequisite
+
+Install and start Docker Desktop (Windows/macOS) or Docker Engine with Compose (Linux).
+
+### Configure environment
+
+Create a local environment file from the committed template. The current application does not require a third-party API key; the template contains only the browser API URL and permitted CORS origin.
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Linux/macOS:
+
+```bash
+cp .env.example .env
+```
+
+### Start
+
+```bash
+docker compose up --build
+```
+
+Open the application at http://localhost:5173. The FastAPI API is available at http://localhost:8000 and its health probe is http://localhost:8000/health.
+
+The frontend is a production Vite build served by Nginx. It calls `http://localhost:8000` from the browser; Docker's internal `backend` hostname is never exposed to browser-side JavaScript.
+
+### Stop, rebuild, and logs
+
+```bash
+docker compose down
+docker compose up --build
+docker compose ps
+docker compose logs -f
+docker compose logs -f backend
+docker compose logs -f frontend
+```
+
+### Troubleshooting
+
+- **Port 5173 or 8000 is in use:** stop the conflicting process, or change the left-hand host port in `docker-compose.yml`.
+- **Frontend cannot reach backend:** check `.env` contains `VITE_BACKEND_URL=http://localhost:8000`, then run `docker compose down` and `docker compose up --build`.
+- **OCR/upload error:** inspect `docker compose logs -f backend`. Tesseract and English OCR language data are installed in the backend image.
+- **Container fails to start:** run `docker compose ps` followed by `docker compose logs -f backend`.
+
 ### Option A: Run with Docker Compose
 This is the recommended way to start the full stack.
 ```bash

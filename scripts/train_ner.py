@@ -3,6 +3,7 @@ import spacy
 from spacy.training.example import Example
 from spacy.matcher import PhraseMatcher
 import random
+from typing import Any
 import sys
 
 # Add root project to sys.path to import tools
@@ -13,7 +14,7 @@ DATASET_PATH = os.path.join(os.path.dirname(__file__), '..', 'dataset')
 MODEL_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', 'models', 'custom_medical_ner')
 
 # Enable GPU Acceleration
-is_using_gpu = spacy.prefer_gpu()
+is_using_gpu = spacy.prefer_gpu()  # pyright: ignore[reportPrivateImportUsage]
 if is_using_gpu:
     print("[GPU] GPU acceleration enabled!")
 else:
@@ -71,9 +72,9 @@ print(f"Generated {len(train_data)} labeled examples for training!")
 
 # 2. Add the NER component to our blank model
 if "ner" not in nlp.pipe_names:
-    ner = nlp.add_pipe("ner")
+    ner: Any = nlp.add_pipe("ner")
 else:
-    ner = nlp.get_pipe("ner")
+    ner: Any = nlp.get_pipe("ner")
 
 # Add the labels
 ner.add_label("MEDICATION")
@@ -89,7 +90,7 @@ for i in range(epochs):
     losses = {}
     
     # Batch the examples
-    batches = spacy.util.minibatch(train_data, size=spacy.util.compounding(4.0, 32.0, 1.001))
+    batches = spacy.util.minibatch(train_data, size=spacy.util.compounding(4.0, 32.0, 1.001))  # pyright: ignore[reportPrivateImportUsage]
     
     for batch in batches:
         examples = []

@@ -28,8 +28,9 @@ class DataLoader:
         or concatenating all string columns if no known column exists.
         """
         text_cols = ["summary", "text", "diagnosis", "report_text"]
+        row_keys = set(row.index)
         for col in text_cols:
-            if col in row and pd.notna(row[col]) and isinstance(row[col], str):
+            if (col in row_keys) and bool(pd.notna(row[col])) and isinstance(row[col], str):
                 return str(row[col])
         
         # Fallback: concatenate all string columns
@@ -41,12 +42,13 @@ class DataLoader:
 
     def _extract_id(self, row: pd.Series, default_id: str) -> str:
         id_cols = ["report_id", "row_id", "subject_id", "id"]
+        row_keys = set(row.index)
         for col in id_cols:
-            if col in row and pd.notna(row[col]):
+            if (col in row_keys) and bool(pd.notna(row[col])):
                 return str(row[col])
         return default_id
 
-    def stream_reports(self, chunk_size: int = 1000, max_records: int = None) -> Iterator[Dict[str, Any]]:
+    def stream_reports(self, chunk_size: int = 1000, max_records: int | None = None) -> Iterator[Dict[str, Any]]:
         """
         Streams reports from all discovered files in chunks to avoid blowing up memory.
         Yields dictionaries with 'document_id' and 'text'.

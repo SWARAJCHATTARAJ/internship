@@ -10,6 +10,9 @@ frontend
 frontend/node_modules
 .git
 .gitignore
+.env
+.env.*
+!.env.example
 Dockerfile
 docker-compose.yml
 internship
@@ -20,3 +23,5 @@ image.png
 Workflow_1.jpg
 package-lock.json
 tmp_fastapi
+.pytest_cache
+.vscode

@@ -84,7 +84,7 @@ class OCRAgent:
             document.close()
 
     def _recognize_page(self, image, page_number: int) -> OCRPage:
-        import pytesseract
+        import pytesseract  # pyright: ignore[reportMissingImports]
         import os
         import sys
         from PIL import ImageEnhance, ImageFilter, ImageOps

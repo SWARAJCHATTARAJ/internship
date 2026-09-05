@@ -1,7 +1,7 @@
 
 
 
-from markdown_pdf import Section, MarkdownPdf
+from markdown_pdf import Section, MarkdownPdf  # pyright: ignore[reportMissingImports]
 
 pdf = MarkdownPdf(toc_level=2)
 
