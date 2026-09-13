@@ -6,13 +6,12 @@ def mask_phi(text: str) -> Tuple[str, Dict[str, str]]:
     mapping: Dict[str, str] = {}
     masked = text
 
-    patient_patterns = [
-        (r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", "[PATIENT_NAME]"),
-        (r"\bpatient\b", "[PATIENT_NAME]"),
-    ]
-    masked = re.sub(r"\bpatient\b", "[PATIENT_NAME]", masked, flags=re.IGNORECASE)
-    masked = re.sub(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", "[PATIENT_NAME]", masked)
-    masked = re.sub(r"\btwo days later\b", "Two days later", masked, flags=re.IGNORECASE)
+    # Mask patient name after PATIENT: or Patient Name:
+    masked = re.sub(r"(?i)\bpatient\s*(?:name)?\s*[:\-]\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)", r"PATIENT: [PATIENT_NAME]", masked)
+    # Mask physician name
+    masked = re.sub(r"(?i)\b(?:dr\.|doctor|attending physician\s*[:\-]?\s*(?:dr\.)?)\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)", r"[PHYSICIAN_NAME]", masked)
+    # Mask explicit 'Patient <Firstname> <Lastname>'
+    masked = re.sub(r"\bPatient\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", "[PATIENT_NAME]", masked)
 
     date_pattern = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
     date_matches = list(date_pattern.finditer(masked))

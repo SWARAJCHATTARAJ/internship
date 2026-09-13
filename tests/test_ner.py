@@ -18,7 +18,7 @@ def test_ner_scispacy_extraction():
     assert "extracted_entities" in result
     audit = result["audit_trail"][-1]
     assert audit.agent_name == "ner_agent"
-    assert audit.action_type in ["SCISPACY_EXTRACTION", "LLM_FALLBACK_EXTRACTION"]
+    assert audit.action_type in ["SCISPACY_EXTRACTION", "LLM_FALLBACK_EXTRACTION", "GEMINI_LLM_EXTRACTION"]
 
 def test_ner_llm_fallback():
     """
@@ -37,7 +37,7 @@ def test_ner_llm_fallback():
     extracted = result["extracted_entities"]
     
     # Check if multiple drugs caused routing update
-    assert "drug_agent" in result["execution_plan"]
+    assert "medication_agent" in result["execution_plan"] or "drug_agent" in result["execution_plan"]
     
     # Check audit trail for plan update
     audit_events = [e.action_type for e in result["audit_trail"]]

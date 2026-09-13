@@ -45,8 +45,8 @@ Thumbs.db
 *.webp
 
 # Project-specific generated artifacts
-internship/models/
-internship/data/
+dataset/
+*.xlsx
 data/*.db
 *.db
 *.log

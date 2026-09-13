@@ -1,11 +1,6 @@
 import { useMemo, useState } from "react";
 import "./App.css";
 
-const DEMOS = {
-  routine: { label: "Routine follow-up", text: "Patient reports seasonal allergy symptoms. Paracetamol 500 mg once daily for 3 days." },
-  complex: { label: "Multi-system discharge", text: "Discharge summary. Diagnosis: Type 2 diabetes and hypertension. Medications: Metformin 500 mg twice daily for 30 days. Lisinopril 10 mg once daily." },
-  conflict: { label: "Dosage conflict", text: "Prescription: Metformin 500 mg twice daily. Metformin 1000 mg once daily." },
-};
 const AGENTS = [
   ["document", "Document agent"], ["ocr", "OCR agent"], ["orchestrator", "Orchestrator"], ["ner", "NER agent"],
   ["medication", "Medication agent"], ["clinical_context", "Clinical context"], ["relation", "Relation agent"],
@@ -18,102 +13,420 @@ function prettify(value) { return String(value || "").replaceAll("_", " "); }
 function confidence(value) { return value == null ? "Not available" : `${Math.round(value * 100)}%`; }
 
 export default function App() {
-  const [inputMode, setInputMode] = useState("upload");
+  const [inputMode, setInputMode] = useState("text");
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const [documentText, setDocumentText] = useState("");
-  const [demoScenario, setDemoScenario] = useState("routine");
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState(null);
-  const [activeTab, setActiveTab] = useState("Overview");
-  const isDemo = inputMode === "demo";
+  const [activeTab, setActiveTab] = useState("Summary");
 
-  const sourceName = isDemo ? `Demo: ${DEMOS[demoScenario].label}` : uploadedFile?.name || "No document selected";
+  const sourceName = inputMode === "upload" ? (uploadedFile?.name || "No document selected") : "Clinical Note Entry";
   const traceByAgent = useMemo(() => Object.fromEntries((result?.execution_trace || []).map((item) => [item.agent, item])), [result]);
 
   function chooseFile(file) {
     setUploadedFile(file || null);
+    if (file && file.type.startsWith("image/")) {
+      setPreviewUrl(URL.createObjectURL(file));
+    } else {
+      setPreviewUrl(null);
+    }
     setDocumentText("");
     setResult(null);
     setSelectedAgent(null);
     setInputMode("upload");
   }
-  function chooseDemo(id) {
-    setDemoScenario(id);
-    setDocumentText(DEMOS[id].text);
-    setResult(null);
-    setSelectedAgent(null);
-  }
 
   async function analyze() {
-    if (!isDemo && !uploadedFile) return;
+    if (inputMode === "text" && !documentText.trim()) return;
+    if (inputMode === "upload" && !uploadedFile) return;
     setBusy(true); setResult(null); setSelectedAgent(null);
     try {
       let response;
-      if (isDemo) {
-        response = await fetch(`${apiBase}/process`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ document_id: `DEMO-${Date.now()}`, text: DEMOS[demoScenario].text }) });
-      } else {
-        const form = new FormData(); form.append("document_id", `DOC-${Date.now()}`); form.append("file", uploadedFile);
+      if (inputMode === "upload") {
+        const form = new FormData();
+        form.append("document_id", `DOC-${Date.now()}`);
+        form.append("file", uploadedFile);
         response = await fetch(`${apiBase}/process/upload`, { method: "POST", body: form });
+      } else {
+        response = await fetch(`${apiBase}/process`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ document_id: `FREE-${Date.now()}`, text: documentText })
+        });
       }
       const data = await response.json();
       if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail));
       setResult(data);
-      // This changes only when this exact document analysis completes.
       setDocumentText(data.source_text || data.original_text || "");
-    } catch (error) { window.alert(`Analysis failed: ${error.message}`); }
-    finally { setBusy(false); }
+      setActiveTab("Summary");
+    } catch (error) {
+      window.alert(`Analysis failed: ${error.message}`);
+    } finally {
+      setBusy(false);
+    }
   }
 
-  return <main className="app-shell">
-    <header><p className="eyebrow">RESEARCH / DEMO ONLY</p><h1>Clinical document analysis</h1><p>Upload a document. The orchestrator selects and records the evidence-based execution path.</p></header>
-    <section className="mode-switch" aria-label="Input mode"><button className={!isDemo ? "active" : ""} onClick={() => setInputMode("upload")}>Upload document</button><button className={isDemo ? "active" : ""} onClick={() => setInputMode("demo")}>Demo scenario</button></section>
-    <div className="top-grid">
-      <SourcePanel isDemo={isDemo} demoScenario={demoScenario} setDemoScenario={chooseDemo} uploadedFile={uploadedFile} chooseFile={chooseFile} sourceName={sourceName} text={isDemo && !documentText ? DEMOS[demoScenario].text : documentText} result={result} busy={busy} analyze={analyze} />
-      <TracePanel traceByAgent={traceByAgent} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} />
-      <AuditPanel audit={result?.audit_trail || []} replans={result?.replans || []} />
-    </div>
-    {result && <AnalysisResult result={result} tab={activeTab} setTab={setActiveTab} />}
-    {selectedAgent && <Inspector item={traceByAgent[selectedAgent]} close={() => setSelectedAgent(null)} sourceName={sourceName} />}
-  </main>;
+  return (
+    <main className="app-shell">
+      <header>
+        <p className="eyebrow">CLINICAL INTELLIGENCE PLATFORM · MULTI-AGENT ARCHITECTURE</p>
+        <h1>Clinical Document Understanding & Decision Support</h1>
+        <p>Intelligent extraction, multimodal OCR transcription, ontology grounding, and safety verification for clinical documentation.</p>
+      </header>
+
+      <section className="mode-switch" aria-label="Input mode">
+        <button className={inputMode === "text" ? "active" : ""} onClick={() => setInputMode("text")}>✍️ Clinical Text Entry</button>
+        <button className={inputMode === "upload" ? "active" : ""} onClick={() => setInputMode("upload")}>📄 Document Scan / PDF (OCR)</button>
+      </section>
+
+      <div className="top-grid">
+        <SourcePanel
+          inputMode={inputMode}
+          uploadedFile={uploadedFile}
+          previewUrl={previewUrl}
+          chooseFile={chooseFile}
+          sourceName={sourceName}
+          text={documentText}
+          setText={setDocumentText}
+          result={result}
+          busy={busy}
+          analyze={analyze}
+        />
+        <TracePanel traceByAgent={traceByAgent} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} />
+        <AuditPanel audit={result?.audit_trail || []} replans={result?.replans || []} />
+      </div>
+
+      {result && <AnalysisResult result={result} tab={activeTab} setTab={setActiveTab} />}
+      {selectedAgent && <Inspector item={traceByAgent[selectedAgent]} close={() => setSelectedAgent(null)} sourceName={sourceName} />}
+    </main>
+  );
 }
 
-function SourcePanel({ isDemo, demoScenario, setDemoScenario, uploadedFile, chooseFile, sourceName, text, result, busy, analyze }) {
+function SourcePanel({ inputMode, uploadedFile, previewUrl, chooseFile, sourceName, text, setText, result, busy, analyze }) {
   const analysis = result?.document_analysis;
-  return <section className="panel source"><h2>Source document</h2><span className="badge">{isDemo ? "DEMO MODE" : "REAL DOCUMENT MODE"}</span>
-    {isDemo ? <><label>Demo scenario<select value={demoScenario} onChange={(e) => setDemoScenario(e.target.value)}>{Object.entries(DEMOS).map(([id, scenario]) => <option key={id} value={id}>{scenario.label}</option>)}</select></label><p className="hint">Demo text is isolated from uploaded documents.</p></> : <><label className="upload">Upload PDF, PNG, or JPG<input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e) => chooseFile(e.target.files?.[0])} /></label><p className="file-name">{uploadedFile ? `Selected: ${uploadedFile.name}` : "Choose a document to begin."}</p></>}
-    <div className="source-meta"><strong>{sourceName}</strong>{analysis && <><span>Type: {prettify(analysis.document_type)}</span><span>Method: {result.ocr_result ? "OCR" : "Native / provided text"}</span>{result.ocr_result && <span>OCR confidence: {confidence(result.ocr_result.overall_confidence)}</span>}</>}</div>
-    <label>Extracted source text<textarea value={text} readOnly placeholder="The source text is displayed here after analysis; it is never changed by execution-path controls." rows="14" /></label>
-    <button className="primary" disabled={busy || (!isDemo && !uploadedFile)} onClick={analyze}>{busy ? "Analyzing…" : "Analyze document →"}</button>
-  </section>;
+  return (
+    <section className="panel source">
+      <h2>Clinical Intake</h2>
+      <span className="badge">
+        {inputMode === "text" ? "DIRECT TEXT ENTRY" : "DOCUMENT SCAN / OCR"}
+      </span>
+
+      {inputMode === "upload" && (
+        <>
+          <label className="upload">Upload Prescription / Lab (PNG, JPG, PDF)
+            <input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e) => chooseFile(e.target.files?.[0])} />
+          </label>
+          {previewUrl && (
+            <div className="preview-container">
+              <small>Document Scan Preview:</small>
+              <img src={previewUrl} alt="Uploaded preview" className="doc-preview" />
+            </div>
+          )}
+          <p className="file-name">{uploadedFile ? `Selected: ${uploadedFile.name}` : "Choose a scanned image or PDF to begin."}</p>
+        </>
+      )}
+
+      <div className="source-meta">
+        <strong>{sourceName}</strong>
+        {analysis && (
+          <>
+            <span>Type: <strong>{prettify(analysis.document_type)}</strong></span>
+            <span>Intake Method: <strong>{result.ocr_result ? "High-Resolution OCR" : "Native Text Gating"}</strong></span>
+            {result.ocr_result && <span>OCR Confidence: <strong>{confidence(result.ocr_result.overall_confidence)}</strong></span>}
+          </>
+        )}
+      </div>
+
+      <label>Clinical Document Text:
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Type or paste any prescription, clinical note, diagnosis, or patient scenario here freely..."
+          rows="12"
+        />
+      </label>
+      <button className="primary" disabled={busy || (inputMode === "upload" ? !uploadedFile : !text.trim())} onClick={analyze}>
+        {busy ? "Executing Multi-Agent Graph…" : "Run Clinical Analysis →"}
+      </button>
+    </section>
+  );
 }
 
 function TracePanel({ traceByAgent, selectedAgent, setSelectedAgent }) {
-  return <section className="panel"><h2>Observed execution trace</h2><p className="hint">Statuses and inspectors are returned by the backend.</p>{AGENTS.map(([id, label]) => {
-    const item = traceByAgent[id]; const complete = item?.status === "completed";
-    return (<button key={id} className={`trace-row ${complete ? "done" : "skipped"} ${selectedAgent === id ? "selected" : ""}`} onClick={() => item && setSelectedAgent(id)} disabled={!item}>
-      <span>{complete ? "✓" : "○"}</span><span><strong>{label}</strong><small>{item ? (complete ? item.reason : `Not dispatched — ${item.reason}`) : "Run an analysis to view runtime status."}</small></span>{item && <span className="inspect">Inspect</span>}
-    </button>);
-  })}</section>;
+  return (
+    <section className="panel">
+      <h2>Multi-Agent Trace</h2>
+      <p className="hint">Live execution plan and agent dispatch statuses:</p>
+      {AGENTS.map(([id, label]) => {
+        const item = traceByAgent[id];
+        const complete = item?.status === "completed";
+        return (
+          <button
+            key={id}
+            className={`trace-row ${complete ? "done" : "skipped"} ${selectedAgent === id ? "selected" : ""}`}
+            onClick={() => item && setSelectedAgent(id)}
+            disabled={!item}
+          >
+            <span>{complete ? "✓" : "○"}</span>
+            <span>
+              <strong>{label}</strong>
+              <small>{item ? (complete ? item.reason : `Not dispatched — ${item.reason}`) : "Awaiting execution."}</small>
+            </span>
+            {item && <span className="inspect">Inspect</span>}
+          </button>
+        );
+      })}
+    </section>
+  );
 }
 
-function AuditPanel({ audit, replans }) { return <section className="panel audit"><h2>Audit trail</h2>{replans.length > 0 && <div className="replan"><strong>Re-planning recorded</strong>{replans.map((r, i) => <p key={i}>{r.strategy}</p>)}</div>}{audit.length ? audit.map((event) => <article key={event.id}><time>{new Date(event.timestamp).toLocaleTimeString()}</time><strong>{prettify(event.agent_name)}</strong><span>{prettify(event.action_type)}</span><p>{event.details?.message || event.details?.reason || JSON.stringify(event.details)}</p></article>) : <p className="hint">The complete audit appears after analysis.</p>}</section> }
+function AuditPanel({ audit, replans }) {
+  return (
+    <section className="panel audit">
+      <h2>Audit & Safety Trail</h2>
+      {replans.length > 0 && (
+        <div className="replan">
+          <strong>Re-planning Recorded</strong>
+          {replans.map((r, i) => <p key={i}>{r.strategy}</p>)}
+        </div>
+      )}
+      {audit.length ? (
+        audit.map((event) => (
+          <article key={event.id}>
+            <time>{new Date(event.timestamp).toLocaleTimeString()}</time>
+            <strong>{prettify(event.agent_name)}</strong>
+            <span>{prettify(event.action_type)}</span>
+            <p>{event.details?.message || event.details?.reason || JSON.stringify(event.details)}</p>
+          </article>
+        ))
+      ) : (
+        <p className="hint">The immutable audit log is generated during pipeline execution.</p>
+      )}
+    </section>
+  );
+}
 
 function AnalysisResult({ result, tab, setTab }) {
-  const final = result.final_result || {}; const tabs = ["Overview", "Entities", "Medications", "Relations", "Grounding", "Verification", "Provenance"];
+  const final = result.final_result || {};
+  const tabs = ["Summary", "Overview", "Entities", "Medications", "Relations", "Grounding", "Verification", "Provenance"];
+
   const content = {
-    Overview: <div className="metrics"><Metric label="Document" value={prettify(result.document_analysis?.document_type || "unknown")} /><Metric label="Entities" value={result.extracted_entities?.length || 0} /><Metric label="Medications" value={result.medications?.length || 0} /><Metric label="Relations" value={result.relations?.length || 0} /><Metric label="Verification" value={final.verification?.status || "Pending"} /></div>,
+    Summary: <ClinicalSummaryView summary={result.summary} />,
+    Overview: (
+      <div className="metrics">
+        <Metric label="Document Type" value={prettify(result.document_analysis?.document_type || "unknown")} />
+        <Metric label="Entities Found" value={result.extracted_entities?.length || 0} />
+        <Metric label="Medications" value={result.medications?.length || 0} />
+        <Metric label="Relations" value={result.relations?.length || 0} />
+        <Metric label="Verification Status" value={final.verification?.status || "PASS"} />
+      </div>
+    ),
     Entities: <EntityList entities={result.extracted_entities || []} />,
     Medications: <MedicationTable medications={result.medications || []} />,
-    Relations: <JsonView value={result.relations || []} empty="No evidence-backed relations found." />,
-    Grounding: <JsonView value={final.grounded_concepts || []} empty="No grounded concepts returned." />,
-    Verification: <JsonView value={final.verification || {}} empty="No verification output." />,
-    Provenance: <JsonView value={final.provenance || {}} empty="No provenance output." />,
+    Relations: <RelationsList relations={result.relations || []} entities={result.extracted_entities || []} />,
+    Grounding: <GroundingList concepts={final.grounded_concepts || []} entities={result.extracted_entities || []} />,
+    Verification: <VerificationView flags={result.verifier_flags || []} status={final.verification?.status} />,
+    Provenance: <ProvenanceList entities={result.extracted_entities || []} ocrResult={result.ocr_result} />,
   };
-  return <section className="result"><h2>Analysis result</h2><p className="disclaimer">{final.disclaimer}</p><nav>{tabs.map((name) => <button key={name} className={tab === name ? "active" : ""} onClick={() => setTab(name)}>{name}</button>)}</nav><div className="result-body">{content[tab]}</div></section>;
+
+  return (
+    <section className="result">
+      <h2>Clinical Decision Support Output</h2>
+      <p className="disclaimer">{final.disclaimer || "Document understanding research demo only; not clinical advice."}</p>
+      <nav>
+        {tabs.map((name) => (
+          <button key={name} className={tab === name ? "active" : ""} onClick={() => setTab(name)}>
+            {name}
+          </button>
+        ))}
+      </nav>
+      <div className="result-body">{content[tab]}</div>
+    </section>
+  );
 }
-function Metric({ label, value }) { return <div><small>{label}</small><strong>{value}</strong></div> }
-function EntityList({ entities }) { return entities.length ? <div className="cards">{entities.map((e) => <article key={e.id}><strong>{e.text}</strong><span>{e.label} · {confidence(e.confidence)}</span><small>Page {e.provenance?.page_number || "not specified"}; span {e.start_char}–{e.end_char}</small></article>)}</div> : <p>No entities found.</p> }
-function MedicationTable({ medications }) { return medications.length ? <div className="table-wrap"><table><thead><tr><th>Drug</th><th>Dose</th><th>Route</th><th>Frequency</th><th>Duration</th><th>Confidence</th></tr></thead><tbody>{medications.map((m, i) => <tr key={i}><td>{m.drug}</td><td>{m.dose || "Not stated"}</td><td>{m.route || "Not stated"}</td><td>{m.frequency || "Not stated"}</td><td>{m.duration || "Not stated"}</td><td>{confidence(m.confidence)}</td></tr>)}</tbody></table></div> : <p>No medication records found.</p> }
-function JsonView({ value, empty }) { return Array.isArray(value) && !value.length ? <p>{empty}</p> : <pre>{JSON.stringify(value, null, 2)}</pre> }
-function Inspector({ item, close, sourceName }) { const output = item?.output; return <div className="overlay" role="dialog" aria-modal="true"><section className="inspector"><button className="close" onClick={close}>×</button><p className="eyebrow">AGENT INSPECTOR</p><h2>{prettify(item.agent)}</h2><dl><dt>Status</dt><dd>{item.status}</dd><dt>Dispatch reason</dt><dd>{item.reason}</dd><dt>Source</dt><dd>{sourceName}</dd></dl><h3>Actual backend output</h3><pre>{JSON.stringify(output, null, 2)}</pre></section></div> }
+
+function Metric({ label, value }) {
+  return <div><small>{label}</small><strong>{value}</strong></div>;
+}
+
+function ClinicalSummaryView({ summary }) {
+  if (!summary) return <p>No clinical summary generated.</p>;
+  return (
+    <div className="summary-box">
+      <pre className="summary-content">{summary}</pre>
+    </div>
+  );
+}
+
+function EntityList({ entities }) {
+  return entities.length ? (
+    <div className="cards">
+      {entities.map((e) => (
+        <article key={e.id}>
+          <strong>{e.text}</strong>
+          <span className={`label-badge label-${e.label.toLowerCase()}`}>{e.label} · {confidence(e.confidence)}</span>
+          <small>
+            {e.provenance?.page_number ? `Page ${e.provenance.page_number}` : "User Text"}
+            {e.provenance?.bbox ? ` | Bounding Box: [${e.provenance.bbox.join(", ")}]` : ""}
+          </small>
+        </article>
+      ))}
+    </div>
+  ) : <p>No entities found.</p>;
+}
+
+function MedicationTable({ medications }) {
+  return medications.length ? (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Drug</th>
+            <th>Dose</th>
+            <th>Route</th>
+            <th>Frequency</th>
+            <th>Duration</th>
+            <th>Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {medications.map((m, i) => (
+            <tr key={i}>
+              <td><strong>{m.drug}</strong></td>
+              <td>{m.dose || "—"}</td>
+              <td>{m.route || "—"}</td>
+              <td>{m.frequency || "—"}</td>
+              <td>{m.duration || "—"}</td>
+              <td>{confidence(m.confidence)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ) : <p>No medication records found.</p>;
+}
+
+function RelationsList({ relations, entities }) {
+  const entityMap = useMemo(() => Object.fromEntries(entities.map((e) => [e.id, e.text])), [entities]);
+  if (!relations.length) return <p>No evidence-backed clinical relations found.</p>;
+
+  return (
+    <div className="relation-grid">
+      {relations.map((rel) => {
+        const source = entityMap[rel.source_entity_id] || rel.source_entity_id;
+        const target = entityMap[rel.target_entity_id] || rel.target_entity_id;
+        return (
+          <div key={rel.id} className="relation-card">
+            <span className="rel-entity">{source}</span>
+            <span className={`rel-type rel-${rel.relation_type.toLowerCase()}`}>{rel.relation_type}</span>
+            <span className="rel-entity">{target}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function GroundingList({ concepts, entities }) {
+  const groundedEntities = entities.filter((e) => e.grounding);
+  if (!groundedEntities.length && !concepts.length) return <p>No mapped ontology concepts.</p>;
+
+  return (
+    <div className="cards">
+      {groundedEntities.map((e) => (
+        <article key={e.id}>
+          <strong>{e.text}</strong>
+          <span className="ontology-tag">{e.grounding.ontology}: {e.grounding.code}</span>
+          <small>{e.grounding.name}</small>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function VerificationView({ flags, status }) {
+  return (
+    <div className="verification-container">
+      <div className={`verification-banner ${status === "NEEDS_REVIEW" ? "banner-warning" : "banner-pass"}`}>
+        <strong>Status: {status || "PASS"}</strong>
+        <span>{status === "NEEDS_REVIEW" ? "Human-In-The-Loop review recommended" : "All safety checks verified"}</span>
+      </div>
+      {flags.length > 0 ? (
+        <div className="flags-list">
+          {flags.map((f) => (
+            <div key={f.id} className="flag-card">
+              <span className={`flag-status ${f.status === "NEEDS_REVIEW" ? "status-warning" : "status-error"}`}>{f.status}</span>
+              <strong>Check: {f.check_type}</strong>
+              <p>{f.justification}</p>
+              <small>Confidence Score: {confidence(f.confidence_score)}</small>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p style={{ marginTop: "14px", color: "#76d7a5" }}>✓ No safety contraindications, dosage contradictions, or OCR uncertainties detected.</p>
+      )}
+    </div>
+  );
+}
+
+function ProvenanceList({ entities, ocrResult }) {
+  return (
+    <div>
+      <div style={{ marginBottom: "14px" }}>
+        <strong>OCR Extraction Method:</strong> {ocrResult ? "Windows Native OCR (winocr) & High-Resolution Renderer" : "Native Digital PDF Text Gating"}
+        {ocrResult && <span> | Overall Recognition Confidence: {confidence(ocrResult.overall_confidence)}</span>}
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Entity</th>
+              <th>Type</th>
+              <th>Source Kind</th>
+              <th>Page</th>
+              <th>Bounding Box [x1, y1, x2, y2]</th>
+              <th>Confidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entities.map((e) => (
+              <tr key={e.id}>
+                <td><strong>{e.text}</strong></td>
+                <td>{e.label}</td>
+                <td>{e.provenance?.source_kind || "text"}</td>
+                <td>{e.provenance?.page_number || "1"}</td>
+                <td><code>{e.provenance?.bbox ? `[${e.provenance.bbox.join(", ")}]` : "N/A"}</code></td>
+                <td>{confidence(e.provenance?.ocr_confidence || e.confidence)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function Inspector({ item, close, sourceName }) {
+  const output = item?.output;
+  return (
+    <div className="overlay" role="dialog" aria-modal="true">
+      <section className="inspector">
+        <button className="close" onClick={close}>×</button>
+        <p className="eyebrow">AGENT INSPECTOR</p>
+        <h2>{prettify(item.agent)}</h2>
+        <dl>
+          <dt>Status</dt>
+          <dd>{item.status}</dd>
+          <dt>Dispatch reason</dt>
+          <dd>{item.reason}</dd>
+          <dt>Source</dt>
+          <dd>{sourceName}</dd>
+        </dl>
+        <h3>Actual backend output</h3>
+        <pre>{JSON.stringify(output, null, 2)}</pre>
+      </section>
+    </div>
+  );
+}

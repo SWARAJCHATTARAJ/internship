@@ -1,235 +1,242 @@
-# Multi-Agent Clinical Report Understanding System
+# Clinical Document Understanding & Decision Support Platform
 
-## Overview
-This project is a clinical report understanding platform built as a multi-agent pipeline. Raw clinical text is routed through an orchestrator that selects the execution path based on report complexity. The pipeline can invoke:
-- NER extraction
-- Relation detection
-- Timeline/event extraction
-- Medical grounding
-- Summarization
-- Verification and re-planning
+An agentic clinical document intelligence platform designed to ingest, transcribe, analyze, and verify medical records, doctor prescriptions, and clinical narratives.
 
-The system exposes a FastAPI backend and a Vite + React frontend. A SpaCy training pipeline generates a custom clinical NER model from the dataset.
+Built with an adaptive multi-agent LangGraph architecture, multimodal vision OCR, medical ontology grounding, and clinical safety verification.
 
-## OCR document intake
+---
 
-The application also accepts scanned clinical documents through `POST /process/upload`. Supported inputs are PDF (including multi-page PDFs), PNG, JPG, and JPEG. The endpoint validates file signatures rather than trusting the file extension, converts PDF pages to images, applies conservative image enhancement, uses Tesseract's built-in text detection/recognition, and records word bounding boxes and confidence when available.
+## Key Features
+
+* **Dual-Mode Clinical Intake**:
+  * **Direct Text Entry**: Ingest arbitrary clinical notes, EHR extracts, discharge summaries, and consultation orders.
+  * **Scanned & Image Document OCR**: Upload handwritten doctor prescriptions, clinical scans, and multi-page PDFs (PNG, JPG, JPEG, PDF).
+* **Multimodal Vision OCR Engine**:
+  * Powered by Gemini Multimodal Vision (`gemini-3.1-flash-lite`, `gemini-2.5-flash`) for doctor handwriting, medication dosage orders, and clinical layouts.
+  * Native Windows OCR (`winocr`) integration for word-level bounding box spatial provenance.
+  * Cross-platform fallback support for Tesseract OCR.
+* **Specialist Multi-Agent Pipeline**:
+  * **Document Agent**: Characterizes document types, determines machine-readability, and gates OCR execution.
+  * **NER Agent**: Extracts clinical entities (`MEDICATION`, `DIAGNOSIS`, `SYMPTOM`, `LAB_RESULT`, `PROCEDURE`, `ANATOMY`).
+  * **Medication Agent**: Parses structured prescription attributes (`drug`, `dose`, `route`, `frequency`, `duration`).
+  * **Relation Agent**: Identifies semantic clinical relationships (`TREATS`, `CAUSES`, `INDICATES`, `TEMPORAL_BEFORE`, `TEMPORAL_AFTER`).
+  * **Timeline Agent**: Normalizes temporal expressions and maps progression of symptoms and interventions.
+  * **Grounding Agent**: Maps extracted terms to standard medical ontologies (RxNorm, ICD-10, SNOMED-CT).
+  * **Verification / Safety Agent**: Flags potential drug interactions, dosage contradictions, and safety hazards with optional replanning.
+  * **Summary Agent**: Generates structured clinical summaries and decision support overviews.
+* **Interactive Web Dashboard**:
+  * Fully integrated single-page application served directly by FastAPI at `http://localhost:8000/`.
+  * Live multi-agent execution trace inspection, entity cards, relationship maps, and audit trail.
+  * Optional standalone Vite + React client in `frontend/`.
+
+---
+
+## System Architecture
 
 ```text
-Frontend upload → API → OCR → preprocessing → NER → Relation → Grounding
-→ Timeline → Summary → Verifier → SQLite → API response → Frontend
+ Clinical Document / Scanned Prescription / Note
+                     │
+                     ▼
+          [Document Intake Agent]
+          ├─ Native PDF / Text ──► [Direct Text Gating]
+          └─ Scanned Image / PDF ─► [Multimodal Vision & OCR Agent]
+                                        │ (Word Bounding Boxes + Text)
+                                        ▼
+                            [PII Masking & Normalization]
+                                        │
+                                        ▼
+                         [Multi-Agent Orchestrator Graph]
+               ┌────────────────────────┼────────────────────────┐
+               ▼                        ▼                        ▼
+       [Clinical NER]           [Medication Parser]       [Relation Extraction]
+               │                        │                        │
+               ▼                        ▼                        ▼
+     [Ontology Grounding]       [Temporal Timeline]      [Safety Verifier / Critic]
+     (RxNorm / ICD-10 / SNOMED)                                  │
+               │                                                 ▼
+               └────────────────► [Summary Agent] ◄──────────────┘
+                                        │
+                                        ▼
+                         [SQLite Audit & Report Store]
+                                        │
+                                        ▼
+                  [Interactive Clinical Dashboard (Port 8000)]
 ```
 
-Use multipart form data with `document_id` and `file`; the response remains a `ReportState` and includes `ocr_result`, `source_file`, and `source_type`. Text submissions to `POST /process` remain unchanged and bypass OCR. The React input panel can submit either report text or an uploaded supported document.
+---
 
-OCR dependencies are Pillow, PyMuPDF, pytesseract, and the system `tesseract-ocr` package (included in the backend image). Run the OCR and regression suite with `pytest`.
+## Project Structure
 
-## Architecture
-- **Backend**: FastAPI API in `api/main.py`
-- **Agent orchestration**: `agents/orchestrator.py` using LangGraph-style workflow
-- **NER training**: `scripts/train_and_evaluate.py` with SpaCy weakly supervised labeling
-- **Frontend**: Vite + React app in `frontend/`
-- **Persistence**: local JSON storage via `data/db.py`
-- **Schema validation**: Pydantic models in `schemas/core.py`
-- **Containerization**: `Dockerfile` + `docker-compose.yml`
-
-## What this project does
-1. Accepts clinical report text via `/process`
-2. Normalizes and masks protected information
-3. Constructs a `ReportState` object
-4. Routes the report through an orchestrator graph
-5. Executes one or more specialist agents
-6. Saves the processed report for later retrieval
-
-## Key files and folders
-- `Dockerfile` — backend image build and runtime entrypoint
-- `docker-compose.yml` — orchestrates backend and frontend services
-- `requirements.txt` — Python dependencies for backend and training
-- `api/main.py` — FastAPI server and processing endpoints
-- `agents/orchestrator.py` — route decision logic and workflow graph
-- `agents/ner.py` — NER extraction agent
-- `agents/relation.py` — relation extraction agent
-- `agents/timeline.py` — timeline/event extraction agent
-- `agents/grounding.py` — medical grounding agent
-- `agents/summary.py` — summary generation agent
-- `agents/verifier.py` — verification and replan logic
-- `schemas/core.py` — Pydantic data models for report state
-- `scripts/train_and_evaluate.py` — training and evaluation script for the custom SpaCy model
-- `dataset/` — training and evaluation data sources
-- `frontend/` — Vite + React user interface
-- `data/db.py` — simple local persistence layer for processed reports
-- `tools/` — preprocessing, data loading, ontology utilities
-
-## Algorithm and workflow
-### Orchestrator
-The orchestrator inspects the input report and decides the execution plan based on:
-- report length
-- presence of clinical keywords such as `medication`, `lab`, `procedure`, `diagnos`, `history`
-
-For short/simple clinical reports, it may route to NER only. For longer or more complex reports, it routes to a specialist path including relation, timeline, grounding, summary, and verifier.
-
-### Agent pipeline
-- **NER Agent**: extracts clinical entities, including medications, diagnoses, and symptoms
-- **Relation Agent**: identifies causal, treatment, or temporal relationships between extracted entities
-- **Timeline Agent**: converts events into a normalized timeline representation
-- **Grounding Agent**: maps entities to medical ontologies such as SNOMED or RxNorm
-- **Summary Agent**: generates a natural language summary of the clinical case
-- **Verifier Agent**: checks consistency and flags contradictions, with optional replanning
-
-### Training and evaluation
-The training pipeline in `scripts/train_and_evaluate.py`:
-- loads clinical text reports from `dataset/`
-- applies weak supervision using SpaCy `PhraseMatcher`
-- labels medications, diagnoses, and symptoms automatically
-- trains a SpaCy NER model with custom labels
-- evaluates precision / recall / F1 on a held-out set
-- saves the model to `models/custom_medical_ner`
-- optionally runs the orchestrator over a subset of examples and exports metrics to `model_evaluation_metrics.json`
-
-## Setup guide
-### 1. Clone repository
-```bash
-git clone <repo-url> "Internship"
-cd "Internship"
+```text
+├── agents/                     # Specialist agent implementations
+│   ├── context.py              # Clinical context specialist
+│   ├── document.py             # Document characterization and format gating
+│   ├── finalizer.py            # Result aggregation and validation
+│   ├── grounding.py           # Medical ontology mapping (RxNorm, ICD-10)
+│   ├── medication.py          # Structured medication and dosage parser
+│   ├── ner.py                  # Clinical Named Entity Recognition agent
+│   ├── ocr.py                  # Multimodal Vision & Windows OCR gateway
+│   ├── orchestrator.py         # LangGraph workflow and dynamic routing
+│   ├── relation.py             # Clinical semantic relation detector
+│   ├── summary.py              # Clinical summary generation
+│   ├── timeline.py             # Temporal event timeline construction
+│   └── verifier.py             # Contraindication and dosage verifier
+├── api/                        # FastAPI service layer
+│   ├── dashboard.py            # Integrated single-page clinical dashboard UI
+│   └── main.py                 # API router, middleware, and upload endpoints
+├── data/                       # Local database & ontology indices
+│   ├── db.py                   # SQLite storage for reports and audit events
+│   ├── ontology_seed.json      # Curated medical ontology seed dictionary
+│   └── reports.db              # SQLite database file
+├── dataset/                    # Clinical benchmarks and evaluation datasets
+├── frontend/                   # Standalone Vite + React application
+├── models/                     # Custom trained clinical NER models
+├── schemas/                    # Core Pydantic schemas and state definitions
+│   └── core.py                 # ReportState, ExtractedEntity, OCRResult, etc.
+├── scripts/                    # Model training and optimization utilities
+│   ├── bulk_optimize.py        # Batch optimization script
+│   ├── train_and_evaluate.py   # SpaCy NER training and evaluation pipeline
+│   └── train_ner.py            # NER model trainer
+├── tests/                      # Automated test suite (pytest)
+│   ├── test_api.py             # FastAPI endpoint tests
+│   ├── test_db.py              # Database persistence tests
+│   ├── test_graph.py           # Multi-agent graph execution tests
+│   ├── test_ocr.py             # OCR ingestion and error handling tests
+│   ├── test_relation.py        # Relation extraction tests
+│   ├── test_schemas.py         # Schema validation tests
+│   ├── test_summary.py         # Summary generation tests
+│   └── test_verifier.py        # Safety verification tests
+├── tools/                      # Core utility modules
+│   ├── data_loader.py          # Clinical dataset ingestion helpers
+│   ├── fhir_validator.py       # FHIR standard schema validation
+│   ├── llm_client.py           # Gemini Multimodal Vision & LLM client
+│   ├── ontology_index.py       # Fast vector/lexical ontology index
+│   └── preprocessing.py        # Clinical text normalizer and PHI masker
+├── Dockerfile                  # Container definition for backend service
+├── docker-compose.yml          # Container orchestration configuration
+├── pytest.ini                  # Pytest runner configuration
+└── requirements.txt            # Python dependencies
 ```
 
-### 2. Create a Python virtual environment
+---
+
+## Quick Start
+
+### 1. Prerequisites
+* Python 3.10+ (tested on Python 3.11 - 3.14)
+* *(Optional)* Docker and Docker Desktop
+
+### 2. Installation
+
+Clone the repository and set up a virtual environment:
+
 ```bash
+git clone <repo-url> "internship"
+cd "internship"
+
 python -m venv .venv
+# On Windows:
 .\.venv\Scripts\activate
-```
+# On Linux / macOS:
+source .venv/bin/activate
 
-### 3. Install Python dependencies
-```bash
-pip install --upgrade pip setuptools wheel
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 4. Install frontend dependencies
-```bash
-cd frontend
-npm install
-cd ..
+### 3. Environment Configuration
+
+Create a `.env` file in the root directory:
+
+```env
+# Optional: Gemini API key enables multimodal vision OCR for handwritten prescriptions
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Allowed origins for CORS (default: http://localhost:5173)
+CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
 
-### 5. Optional: build the frontend for production
-```bash
-cd frontend
-npm run build
-cd ..
-```
+> **Note:** If no `GEMINI_API_KEY` is provided, the platform gracefully uses local Windows OCR (`winocr`) and Tesseract OCR.
 
-## Running the system
+---
 
-## Run with Docker
+## Running the Application
 
-Docker is the supported way to run the complete application. It installs Python, Node.js, Tesseract OCR, and all project dependencies inside containers; no local Python, Node.js, npm, pip, or Tesseract installation is needed.
+### Option A: Local Python Server (Fastest)
 
-### Prerequisite
-
-Install and start Docker Desktop (Windows/macOS) or Docker Engine with Compose (Linux).
-
-### Configure environment
-
-Create a local environment file from the committed template. The current application does not require a third-party API key; the template contains only the browser API URL and permitted CORS origin.
-
-Windows PowerShell:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-Linux/macOS:
+Start the Uvicorn ASGI server:
 
 ```bash
-cp .env.example .env
+python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Start
+Once running:
+* **Clinical Dashboard**: Open [http://localhost:8000/](http://localhost:8000/) in any web browser.
+* **Interactive Swagger Docs**: Access [http://localhost:8000/docs](http://localhost:8000/docs).
+* **Health Probe**: [http://localhost:8000/health](http://localhost:8000/health).
+
+### Option B: Docker Compose
+
+To start the containerized stack:
 
 ```bash
 docker compose up --build
 ```
 
-Open the application at http://localhost:5173. The FastAPI API is available at http://localhost:8000 and its health probe is http://localhost:8000/health.
+* **Frontend UI**: [http://localhost:5173](http://localhost:5173)
+* **Backend API**: [http://localhost:8000](http://localhost:8000)
 
-The frontend is a production Vite build served by Nginx. It calls `http://localhost:8000` from the browser; Docker's internal `backend` hostname is never exposed to browser-side JavaScript.
+---
 
-### Stop, rebuild, and logs
+## API Documentation
+
+### Ingest Plain Clinical Text
+* **Endpoint**: `POST /process`
+* **Content-Type**: `application/json`
+* **Request**:
+  ```json
+  {
+    "document_id": "DOC-1001",
+    "text": "Patient Robert Davis (Age: 58). Diagnosed with Type 2 Diabetes Mellitus and Essential Hypertension. Prescribed Metformin 500 mg oral twice daily and Lisinopril 10 mg oral once daily."
+  }
+  ```
+* **Response**: `ReportState` JSON containing extracted entities, medications, relationships, safety flags, and clinical summary.
+
+### Upload Clinical Document / Prescription (OCR)
+* **Endpoint**: `POST /process/upload`
+* **Content-Type**: `multipart/form-data`
+* **Parameters**:
+  * `document_id`: Unique identifier string.
+  * `file`: File upload (`.pdf`, `.png`, `.jpg`, `.jpeg`).
+* **Response**: `ReportState` JSON with `ocr_result` (overall confidence, bounding box coordinates, transcribed clinical text) and full downstream clinical extraction.
+
+### Retrieve Stored Report
+* **Endpoint**: `GET /reports/{document_id}`
+* **Response**: Persisted report state, execution trace, and audit log.
+
+### Health Check
+* **Endpoint**: `GET /health`
+* **Response**: `{"status": "ok"}`
+
+---
+
+## Running Tests
+
+Run the test suite using pytest:
 
 ```bash
-docker compose down
-docker compose up --build
-docker compose ps
-docker compose logs -f
-docker compose logs -f backend
-docker compose logs -f frontend
+python -m pytest
 ```
 
-### Troubleshooting
+To run a specific module:
 
-- **Port 5173 or 8000 is in use:** stop the conflicting process, or change the left-hand host port in `docker-compose.yml`.
-- **Frontend cannot reach backend:** check `.env` contains `VITE_BACKEND_URL=http://localhost:8000`, then run `docker compose down` and `docker compose up --build`.
-- **OCR/upload error:** inspect `docker compose logs -f backend`. Tesseract and English OCR language data are installed in the backend image.
-- **Container fails to start:** run `docker compose ps` followed by `docker compose logs -f backend`.
-
-### Option A: Run with Docker Compose
-This is the recommended way to start the full stack.
 ```bash
-docker compose up --build
-```
-If you want detached mode:
-```bash
-docker compose up -d --build
+python -m pytest tests/test_ocr.py -v
+python -m pytest tests/test_api.py -v
 ```
 
-### Option B: Run backend only
-```bash
-python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
-```
+---
 
-### Option C: Run frontend only
-```bash
-cd frontend
-npm run dev
-```
-The frontend expects the backend at `http://localhost:8000` by default, or it can use `VITE_BACKEND_URL`.
+## License
 
-## API endpoints
-- `POST /process`
-  - payload: `{ "document_id": "<id>", "text": "<clinical report text>" }`
-  - response: `ReportState`
-- `GET /reports/{document_id}`
-  - returns the stored processed report
-
-## Useful commands
-### Rebuild backend image after dependency changes
-```bash
-docker compose build --no-cache backend
-```
-
-### Check running containers
-```bash
-docker compose ps
-```
-
-### Stop and remove containers
-```bash
-docker compose down
-```
-
-### Troubleshoot port conflicts
-If port `8000` is already occupied, stop the conflicting process or change the host port mapping in `docker-compose.yml`.
-
-## Expected ports
-- Backend: `http://localhost:8000`
-- Frontend: `http://localhost:5173`
-
-## Notes
-- The backend loads and invokes the multi-agent graph in `api/main.py`.
-- The schema definitions in `schemas/core.py` define entities, relations, timeline events, verifier flags, and audit trail recordings.
-- The frontend application in `frontend/src/App.jsx` sends processing requests to the backend and renders the returned agent plan and outputs.
-- The training script uses SpaCy weak supervision rather than manual annotation, which speeds up model development for medical NER.
-
-## Project status
-This repository includes the core multi-agent orchestration pipeline, a backend API, a React frontend demo, model training scripts, and Docker orchestration for local end-to-end execution.
+This project is developed for clinical document intelligence and healthcare informatics research.

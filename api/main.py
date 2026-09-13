@@ -26,6 +26,16 @@ app.add_middleware(
 )
 
 
+from fastapi.responses import HTMLResponse
+from api.dashboard import DASHBOARD_HTML
+
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_dashboard():
+    """Serves the interactive multi-agent clinical dashboard."""
+    return HTMLResponse(content=DASHBOARD_HTML)
+
+
 @app.get("/health")
 async def health_check():
     """Container health probe; does not access document data."""
