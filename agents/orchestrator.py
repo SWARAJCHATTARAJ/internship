@@ -1,105 +1,95 @@
-from langgraph.graph import StateGraph, END
-from schemas.core import ReportState, AuditEvent
+"""Adaptive, observable coordinator for the clinical document demo."""
+from __future__ import annotations
+
+from schemas.core import AuditEvent, ReportState
 from agents.ner import ner_agent
+from agents.medication import medication_agent
+from agents.context import clinical_context_agent
 from agents.relation import relation_agent
+from agents.timeline import timeline_agent
 from agents.grounding import grounding_agent
 from agents.summary import summary_agent
 from agents.verifier import verifier_agent
+from agents.finalizer import finalizer_agent
+
 
 def orchestrator_node(state: ReportState) -> dict:
+    analysis = state.document_analysis
     text = state.original_text.lower()
-    length = len(text.split())
-    
-    keywords = ["medication", "lab", "procedure", "diagnos", "history"]
-    keyword_count = sum(1 for kw in keywords if kw in text)
-    
-    # Deterministic complexity heuristic
-    if length > 50 or keyword_count >= 2:
-        plan = ["ner_agent", "relation_agent", "grounding_agent", "summary_agent", "verifier_agent"]
-        reasoning = f"Complex report detected (length={length}, keywords={keyword_count}). Routing to full specialist suite."
-    else:
-        plan = ["ner_agent"]
-        reasoning = f"Simple report detected (length={length}, keywords={keyword_count}). Routing to NER only."
-    
-    new_audit = AuditEvent(
-        agent_name="orchestrator",
-        action_type="ROUTING_DECISION",
-        details={"reasoning": reasoning, "plan": plan}
+    complex_document = bool(
+        (analysis and (analysis.requires_ocr or analysis.document_type == "prescription"))
+        or len(text.split()) > 30
+        or any(k in text for k in ("prescription", "diagnos", "history", "medication", "lab", "procedure"))
     )
-    
-    audit_trail = state.audit_trail.copy()
-    audit_trail.append(new_audit)
-    
-    replan_count = state.replan_count
-    # If we arrived here and there are unresolved flags, we are replanning
-    unresolved = [f for f in state.verifier_flags if not f.resolved]
-    if len(unresolved) > 0:
-        replan_count += 1
-        audit_trail.append(AuditEvent(
-            agent_name="orchestrator",
-            action_type="REPLANNING",
-            details={"replan_count": replan_count, "unresolved_flags": len(unresolved)}
-        ))
-        
-    return {"execution_plan": plan, "audit_trail": audit_trail, "replan_count": replan_count}
-
-def drug_agent(state: ReportState) -> dict:
-    audit_trail = state.audit_trail.copy()
-    audit_trail.append(AuditEvent(
-        agent_name="drug_agent",
-        action_type="STUB_EXECUTION",
-        details={"message": "Drug agent validated complex medication regimen."}
+    has_medication_signal = any(k in text for k in (
+        "mg", "tablet", "capsule", "medicine", "metformin", "paracetamol", "cetirizine", "amoxicillin",
     ))
-    return {"audit_trail": audit_trail}
+    if complex_document:
+        plan = ["ner_agent"]
+        if has_medication_signal:
+            plan.append("medication_agent")
+        plan.extend(["clinical_context_agent", "relation_agent", "grounding_agent", "summary_agent", "verifier_agent"])
+    else:
+        plan = ["ner_agent", "verifier_agent"]
 
-# --- Routing Logic ---
-def route_after_ner(state: ReportState) -> str:
-    if "drug_agent" in state.execution_plan: return "drug_agent"
-    if "relation_agent" in state.execution_plan: return "relation_agent"
-    if "grounding_agent" in state.execution_plan: return "grounding_agent"
-    if "summary_agent" in state.execution_plan: return "summary_agent"
-    return "verifier_agent"
+    audit = state.audit_trail.copy()
+    audit.append(AuditEvent(agent_name="orchestrator", action_type="ROUTING_DECISION", details={
+        "document_analysis": analysis.model_dump() if analysis else None,
+        "complex_document": complex_document,
+        "plan": plan,
+        "reason": "conditional document-aware specialist selection",
+    }))
+    return {"execution_plan": plan, "audit_trail": audit}
 
-def route_after_drug(state: ReportState) -> str:
-    if "relation_agent" in state.execution_plan: return "relation_agent"
-    if "grounding_agent" in state.execution_plan: return "grounding_agent"
-    if "summary_agent" in state.execution_plan: return "summary_agent"
-    return "verifier_agent"
 
-def route_after_relation(state: ReportState) -> str:
-    if "grounding_agent" in state.execution_plan: return "grounding_agent"
-    if "summary_agent" in state.execution_plan: return "summary_agent"
-    return "verifier_agent"
+class SimpleGraph:
+    """State runner with bounded, explicit re-planning and no hidden reasoning trace."""
+    node_map = {
+        "ner_agent": ner_agent,
+        "drug_agent": medication_agent,  # legacy alias retained for saved execution plans
+        "medication_agent": medication_agent,
+        "clinical_context_agent": clinical_context_agent,
+        "relation_agent": relation_agent,
+        "timeline_agent": timeline_agent,
+        "grounding_agent": grounding_agent,
+        "summary_agent": summary_agent,
+        "verifier_agent": verifier_agent,
+    }
 
-def route_after_grounding(state: ReportState) -> str:
-    if "summary_agent" in state.execution_plan: return "summary_agent"
-    return "verifier_agent"
+    @staticmethod
+    def _apply_update(state: ReportState, update: dict) -> ReportState:
+        payload = state.model_dump()
+        payload.update(update)
+        return ReportState(**payload)
 
-def verify_and_replan(state: ReportState) -> str:
-    unresolved = [f for f in state.verifier_flags if not f.resolved]
-    if len(unresolved) > 0 and state.replan_count < 2:
-        return "orchestrator"
-    return END
+    def invoke(self, state_input):
+        state = state_input if isinstance(state_input, ReportState) else ReportState(**state_input)
+        state = self._apply_update(state, orchestrator_node(state))
+        plan_index = 0
+        # Agents may add a narrowly scoped specialist after observing evidence.
+        while plan_index < len(state.execution_plan):
+            agent_name = state.execution_plan[plan_index]
+            state = self._apply_update(state, self.node_map[agent_name](state))
+            plan_index += 1
 
-# --- Build the Graph ---
-workflow = StateGraph(ReportState)
+        unresolved = [flag for flag in state.verifier_flags if not flag.resolved]
+        while state.replan_count < 2 and unresolved:
+            audit = state.audit_trail.copy()
+            audit.append(AuditEvent(agent_name="orchestrator", action_type="REPLANNING", details={
+                "replan_count": state.replan_count + 1,
+                "strategy": "repeat deterministic evidence extraction; escalate unresolved items to HITL",
+                "flags": [flag.check_type for flag in unresolved],
+            }))
+            state = self._apply_update(state, {"replan_count": state.replan_count + 1, "audit_trail": audit})
+            for agent_name in ("ner_agent", "medication_agent", "clinical_context_agent", "relation_agent", "verifier_agent"):
+                if agent_name in state.execution_plan:
+                    state = self._apply_update(state, self.node_map[agent_name](state))
+            unresolved = [flag for flag in state.verifier_flags if not flag.resolved]
 
-workflow.add_node("orchestrator", orchestrator_node)
-workflow.add_node("ner_agent", ner_agent)
-workflow.add_node("drug_agent", drug_agent)
-workflow.add_node("relation_agent", relation_agent)
-workflow.add_node("grounding_agent", grounding_agent)
-workflow.add_node("summary_agent", summary_agent)
-workflow.add_node("verifier_agent", verifier_agent)
+        state = self._apply_update(state, finalizer_agent(state))
+        # Keep model objects in the runner result for the established in-process
+        # API/tests; FastAPI serializes them through ReportState at the boundary.
+        return {name: getattr(state, name) for name in ReportState.model_fields}
 
-workflow.set_entry_point("orchestrator")
 
-workflow.add_edge("orchestrator", "ner_agent")
-workflow.add_conditional_edges("ner_agent", route_after_ner)
-workflow.add_conditional_edges("drug_agent", route_after_drug)
-workflow.add_conditional_edges("relation_agent", route_after_relation)
-workflow.add_conditional_edges("grounding_agent", route_after_grounding)
-workflow.add_edge("summary_agent", "verifier_agent")
-workflow.add_conditional_edges("verifier_agent", verify_and_replan)
-
-graph = workflow.compile()
+graph = SimpleGraph()

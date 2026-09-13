@@ -1,9 +1,76 @@
-dataset/
-models/
-chat_history.jsonl
+# Python bytecode
 __pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+.venv_train/
+venv/
+env/
+ENV/
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test / coverage
 .pytest_cache/
-*.pyc
+.coverage
+.coverage.*
+htmlcov/
+
+# Jupyter / notebooks
+.ipynb_checkpoints/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.svg
+*.webp
+
+# Project-specific generated artifacts
+dataset/
+*.xlsx
+data/*.db
+*.db
+*.log
+
+# Environment files / secrets
 .env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Tests and temporary artifacts
+.pytest_cache/
+
+# Local temporary files
+tmp_fastapi/
+
+# Project documents / large non-code files
 md_to_pdf.py
+Project_Documentation.pdf
+Project_Documentation_Final.pdf
 Project_Documentation_Final copy.pdf
+image.png
+Workflow_1.jpg
+package-lock.json

@@ -3,11 +3,10 @@ import sys
 import time
 import random
 import json
-import pandas as pd
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, cast
 import spacy
 # Enable GPU training for RTX 3050 if available, otherwise fallback to CPU
-spacy.prefer_gpu()
+spacy.prefer_gpu()  # pyright: ignore[reportPrivateImportUsage]
 from spacy.training.example import Example
 from spacy.matcher import PhraseMatcher
 
@@ -122,9 +121,9 @@ def run_training_and_evaluation(max_train_samples: int = 5000, eval_split: float
 
     # 3. Model Architecture Setup
     if "ner" not in nlp.pipe_names:
-        ner = nlp.add_pipe("ner")
+        ner: Any = nlp.add_pipe("ner")
     else:
-        ner = nlp.get_pipe("ner")
+        ner: Any = nlp.get_pipe("ner")
         
     ner.add_label("MEDICATION")
     ner.add_label("DIAGNOSIS")
@@ -144,7 +143,7 @@ def run_training_and_evaluation(max_train_samples: int = 5000, eval_split: float
     for i in range(epochs):
         random.shuffle(train_data)
         losses = {}
-        batches = spacy.util.minibatch(train_data, size=spacy.util.compounding(4.0, 32.0, 1.001))
+        batches = spacy.util.minibatch(train_data, size=spacy.util.compounding(4.0, 32.0, 1.001))  # pyright: ignore[reportPrivateImportUsage]
         
         for batch in batches:
             examples = []
