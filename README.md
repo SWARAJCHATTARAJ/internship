@@ -342,6 +342,13 @@ curl http://localhost:8000/health
 docker compose down
 ```
 
+## Benchmarking
+
+The opt-in, offline-first benchmark framework is documented in
+[benchmarks/README.md](./benchmarks/README.md). Run all suites without paid model
+calls using `python -m benchmarks.run_benchmarks --all --mode mock`; attach
+human-annotated datasets with `--dataset PATH` to calculate accuracy metrics.
+
 If an old local checkout reports a missing SQLite column after upgrading, run the backend
 once with the updated migration or remove only the ignored `data/reports.db` file. A
 configured PostgreSQL database is migrated idempotently on backend startup.

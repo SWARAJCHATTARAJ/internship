@@ -1,0 +1,1914 @@
+{
+  "metadata": {
+    "executed_at": "2026-10-30T13:28:18.786180+05:30",
+    "benchmark_framework_version": "1.0.0",
+    "git": {
+      "commit": "9a66232b5ea1eca17d86f11b1e8466effd0b5146",
+      "branch": "pratyus-dev"
+    },
+    "python_version": "3.11.9",
+    "operating_system": "Windows-10-10.0.26200-SP0",
+    "cpu": "Intel64 Family 6 Model 165 Stepping 2, GenuineIntel",
+    "ram_total_mb": 16221.00390625,
+    "gpu": null,
+    "system": {
+      "python_version": "3.11.9",
+      "operating_system": "Windows-10-10.0.26200-SP0",
+      "cpu": "Intel64 Family 6 Model 165 Stepping 2, GenuineIntel",
+      "cpu_count": 8,
+      "ram_total_mb": 16221.00390625,
+      "gpu": null
+    },
+    "models": {
+      "ner": "d4data/biomedical-ner-all; optional custom_medical_ner or en_core_sci_sm",
+      "relation": "wesin/pubmedbert-relation-extraction",
+      "grounding": "NeuML/biomedbert-base-embeddings; Chroma index may use all-MiniLM-L6-v2",
+      "vision_ocr": "Gemini gemini-3.1-flash-lite, gemini-2.5-flash, gemini-2.0-flash",
+      "local_ocr": "winocr on Windows or Tesseract"
+    },
+    "model_versions": {
+      "model_repository_revisions": null,
+      "note": "The project configures model identifiers but does not pin or report repository revisions."
+    },
+    "dependencies": {
+      "fastapi": "0.141.1",
+      "pydantic": "2.14.1",
+      "langgraph": "0.1.5",
+      "spacy": "3.6.1",
+      "scispacy": "0.5.3",
+      "transformers": "5.17.0",
+      "torch": "2.10.0",
+      "sentence-transformers": "6.0.1",
+      "chromadb": "0.5.0",
+      "pymupdf": "1.24.9",
+      "pytesseract": "0.3.13",
+      "pillow": "10.4.0",
+      "psutil": "5.9.5",
+      "openpyxl": "3.1.5"
+    },
+    "dataset_source": "default synthetic text fixture or suite-specific input",
+    "configuration": {
+      "mode": "mock",
+      "dataset": null,
+      "documents": 10,
+      "workers": 1,
+      "timeout_seconds": 30.0,
+      "seed": 42,
+      "output_dir": "benchmark_results"
+    },
+    "platform": "Windows-10-10.0.26200-SP0"
+  },
+  "suite_summaries": {
+    "ocr": {
+      "accuracy_metrics_available": false,
+      "documents": 0,
+      "cer": null,
+      "wer": null,
+      "text_extraction_accuracy": null,
+      "average_seconds_per_document": null,
+      "pages_per_second": null,
+      "failure_rate": null,
+      "confidence_distribution": null,
+      "dataset_source": "not configured"
+    },
+    "ner": {
+      "precision": null,
+      "recall": null,
+      "f1": null,
+      "tp": null,
+      "fp": null,
+      "fn": null,
+      "micro_precision": null,
+      "micro_recall": null,
+      "micro_f1": null,
+      "macro_precision": null,
+      "macro_recall": null,
+      "macro_f1": null,
+      "per_entity": {},
+      "documents": 10,
+      "annotated_documents": 0,
+      "accuracy_metrics_available": false,
+      "average_extraction_seconds": 0.00030375999995158054,
+      "entities_per_second": 9876.21806846919,
+      "latency": {
+        "average_seconds": 0.00030375999995158054,
+        "median_seconds": 0.00015319999965868192,
+        "p50_seconds": 0.00015319999965868192,
+        "p90_seconds": 0.000357369999892398,
+        "p95_seconds": 0.0010056850002456495,
+        "p99_seconds": 0.0015243370005282488
+      },
+      "entities_predicted": 30,
+      "words_processed": 115,
+      "dataset_source": "E:\\LR 1\\intern_1\\data\\synthetic\\reports.json",
+      "matching": "Exact labeled span when offsets are supplied; otherwise exact case-insensitive entity text."
+    },
+    "medication": {
+      "medication_name_precision": null,
+      "medication_name_recall": null,
+      "medication_name_f1": null,
+      "attribute_accuracy": {
+        "dose": null,
+        "frequency": null,
+        "route": null,
+        "duration": null
+      },
+      "normalization_accuracy": null,
+      "complete_record_accuracy": null,
+      "documents": 10,
+      "annotated_documents": 0,
+      "accuracy_metrics_available": false,
+      "medication_records_predicted": 10,
+      "average_latency_seconds": 0.00019002999997610459,
+      "latency": {
+        "average_seconds": 0.00019002999997610459,
+        "median_seconds": 0.00017534999960844289,
+        "p50_seconds": 0.00017534999960844289,
+        "p90_seconds": 0.0002032700000199838,
+        "p95_seconds": 0.0002638849999129889,
+        "p99_seconds": 0.0003123769998273929
+      },
+      "records_per_second": 5262.327001661556,
+      "dataset_source": "E:\\LR 1\\intern_1\\data\\synthetic\\reports.json"
+    },
+    "relation": {
+      "precision": null,
+      "recall": null,
+      "f1": null,
+      "subject_object_direction_accuracy": null,
+      "relation_classification_accuracy": null,
+      "invalid_relation_rate": 0.0,
+      "invalid_relations": 0,
+      "relations_predicted": 20,
+      "documents": 10,
+      "annotated_documents": 0,
+      "accuracy_metrics_available": false,
+      "average_seconds_per_document": 0.00022268000002441114,
+      "latency": {
+        "average_seconds": 0.00022268000002441114,
+        "median_seconds": 0.00019100000008620555,
+        "p50_seconds": 0.00019100000008620555,
+        "p90_seconds": 0.0002449600001455109,
+        "p95_seconds": 0.0003748299998278528,
+        "p99_seconds": 0.0004787259995737259
+      },
+      "relations_per_second": 8981.498112900807,
+      "dataset_source": "E:\\LR 1\\intern_1\\data\\synthetic\\reports.json"
+    },
+    "grounding": {
+      "top1_accuracy": null,
+      "fallback_top1_accuracy": null,
+      "exact_match_accuracy": null,
+      "semantic_match_accuracy": null,
+      "semantic_match_definition": "Reference code match or exact normalized concept-name match; no semantic equivalence is inferred.",
+      "recall_at_5": null,
+      "recall_at_10": null,
+      "mean_reciprocal_rank": null,
+      "top_k_accuracy": {
+        "top_1": null,
+        "top_5": null,
+        "top_10": null
+      },
+      "grounding_latency_seconds": 0.00025275999987570683,
+      "grounding_latency_p95_seconds": 0.0003686849997393439,
+      "unmapped_entity_percentage": 36.666666666666664,
+      "mapped_entities": 19,
+      "entities": 30,
+      "annotated_mappings": 0,
+      "accuracy_metrics_available": false,
+      "grounding_mode": "deterministic fallback",
+      "documents": 10,
+      "groundings_per_second": 11868.966614477098,
+      "dataset_source": "E:\\LR 1\\intern_1\\data\\synthetic\\reports.json"
+    },
+    "verification": {
+      "flag_precision": null,
+      "flag_recall": null,
+      "flag_f1": null,
+      "false_positive_rate": null,
+      "false_negative_rate": null,
+      "verification_accuracy": null,
+      "per_flag": {
+        "DIAGNOSIS_ENTAILMENT": {
+          "precision": null,
+          "recall": null
+        },
+        "DOSAGE_CONTRADICTION": {
+          "precision": null,
+          "recall": null
+        },
+        "DRUG_PLAUSIBILITY": {
+          "precision": null,
+          "recall": null
+        },
+        "FHIR_SCHEMA": {
+          "precision": null,
+          "recall": null
+        },
+        "LAB_RANGE": {
+          "precision": null,
+          "recall": null
+        },
+        "OCR_UNCERTAINTY": {
+          "precision": null,
+          "recall": null
+        },
+        "UNSUPPORTED_CLAIM": {
+          "precision": null,
+          "recall": null
+        }
+      },
+      "unsupported_claim_detection_precision": null,
+      "unsupported_claim_detection_recall": null,
+      "citation_source_support_rate": null,
+      "documents": 0,
+      "annotated_documents": 0,
+      "accuracy_metrics_available": false,
+      "latency": {
+        "average_seconds": null,
+        "median_seconds": null,
+        "p50_seconds": null,
+        "p90_seconds": null,
+        "p95_seconds": null,
+        "p99_seconds": null
+      },
+      "dataset_source": "not configured"
+    },
+    "pipeline": {
+      "documents": 10,
+      "successful_documents": 10,
+      "failed_documents": 0,
+      "success_rate": 1.0,
+      "failure_rate": 0.0,
+      "average_seconds": 0.008556849999786209,
+      "median_seconds": 0.008068050000019866,
+      "p50_seconds": 0.008068050000019866,
+      "p90_seconds": 0.009346929999810525,
+      "p95_seconds": 0.011623614999643908,
+      "p99_seconds": 0.013444962999510607,
+      "total_execution_seconds": 0.08556849999786209,
+      "documents_per_second": 116.86543529744996,
+      "average_entities_per_document": 3.0,
+      "average_relationships_per_document": 2.0,
+      "dataset_source": "E:\\LR 1\\intern_1\\data\\synthetic\\reports.json",
+      "database": "temporary SQLite database; removed after suite"
+    },
+    "api": {
+      "endpoints": [
+        "POST /process",
+        "POST /process/upload"
+      ],
+      "execution_scope": "in-process FastAPI ASGI transport; persistence methods disabled",
+      "requests": 10,
+      "concurrency": 1,
+      "requests_per_second": 19.157260611331022,
+      "average_seconds": 0.013305779999973311,
+      "median_seconds": 0.013229300000148214,
+      "p50_seconds": 0.013229300000148214,
+      "p90_seconds": 0.021475459999692248,
+      "p95_seconds": 0.022171879999632438,
+      "p99_seconds": 0.02272901599958459,
+      "http_4xx_errors": 0,
+      "http_5xx_errors": 0,
+      "request_error_count": 0,
+      "timeout_count": 0,
+      "timeout_rate": 0.0,
+      "success_count": 10,
+      "success_rate": 1.0,
+      "dataset_source": "E:\\LR 1\\intern_1\\data\\synthetic\\reports.json",
+      "elapsed_seconds": 0.5219953000005262
+    },
+    "database": {
+      "backend": "SQLite",
+      "database_scope": "temporary file; removed when the suite completes",
+      "records": 10,
+      "connection_initialization_seconds": 0.012275499999304884,
+      "insert": {
+        "average_seconds": 0.005515660000037314,
+        "median_seconds": 0.005655850000039209,
+        "p50_seconds": 0.005655850000039209,
+        "p90_seconds": 0.005887580000035086,
+        "p95_seconds": 0.005911789999800021,
+        "p99_seconds": 0.005931157999611969
+      },
+      "update": {
+        "average_seconds": 0.005037460000130523,
+        "median_seconds": 0.005039300000134972,
+        "p50_seconds": 0.005039300000134972,
+        "p90_seconds": 0.005443319999994855,
+        "p95_seconds": 0.0054888600001049784,
+        "p99_seconds": 0.005525292000193076
+      },
+      "select": {
+        "average_seconds": 0.0008177300001079857,
+        "median_seconds": 0.0006904000001668464,
+        "p50_seconds": 0.0006904000001668464,
+        "p90_seconds": 0.0010736800005361146,
+        "p95_seconds": 0.0012873400005901207,
+        "p99_seconds": 0.001458268000633325
+      },
+      "sequential_bulk_insert_seconds": 0.049667199999930745,
+      "sequential_bulk_insert_records_per_second": 201.34011983792007,
+      "bulk_insert_note": "Measured repeated application save_report calls; this is not a native SQL batch insert.",
+      "operation_throughput": 244.8344521207355,
+      "operation_failures": 0,
+      "operation_failure_rate": 0.0
+    },
+    "load": {
+      "documents_requested": 10,
+      "workers": 1,
+      "elapsed_seconds": 0.028910900000482798,
+      "throughput_documents_per_second": 345.8903043431026,
+      "average_latency_seconds": 0.0025500200001260962,
+      "average_seconds": 0.0025500200001260962,
+      "median_seconds": 0.0022993000002315966,
+      "p50_seconds": 0.0022993000002315966,
+      "p90_seconds": 0.004014030000234924,
+      "p95_seconds": 0.0046644149999792725,
+      "p99_seconds": 0.005184722999774749,
+      "successful_documents": 10,
+      "failed_documents": 0,
+      "failure_rate": 0.0,
+      "cpu_usage_percent": 24.4,
+      "ram_usage_percent": 81.1,
+      "peak_process_memory_mb": 218.171875,
+      "entities_per_document": 2.7,
+      "relations_per_document": 1.7,
+      "dataset_source": "E:\\LR 1\\intern_1\\data\\synthetic\\reports.json",
+      "seed": 42
+    }
+  },
+  "results": [
+    {
+      "suite": "ocr",
+      "metrics": {
+        "accuracy_metrics_available": false,
+        "documents": 0,
+        "cer": null,
+        "wer": null,
+        "text_extraction_accuracy": null,
+        "average_seconds_per_document": null,
+        "pages_per_second": null,
+        "failure_rate": null,
+        "confidence_distribution": null,
+        "dataset_source": "not configured"
+      },
+      "details": [],
+      "stage_timings": [],
+      "resource_metrics": [],
+      "warnings": [
+        "No OCR documents configured; accuracy and performance metrics are unavailable."
+      ],
+      "errors": []
+    },
+    {
+      "suite": "ner",
+      "metrics": {
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "tp": null,
+        "fp": null,
+        "fn": null,
+        "micro_precision": null,
+        "micro_recall": null,
+        "micro_f1": null,
+        "macro_precision": null,
+        "macro_recall": null,
+        "macro_f1": null,
+        "per_entity": {},
+        "documents": 10,
+        "annotated_documents": 0,
+        "accuracy_metrics_available": false,
+        "average_extraction_seconds": 0.00030375999995158054,
+        "entities_per_second": 9876.21806846919,
+        "latency": {
+          "average_seconds": 0.00030375999995158054,
+          "median_seconds": 0.00015319999965868192,
+          "p50_seconds": 0.00015319999965868192,
+          "p90_seconds": 0.000357369999892398,
+          "p95_seconds": 0.0010056850002456495,
+          "p99_seconds": 0.0015243370005282488
+        },
+        "entities_predicted": 30,
+        "words_processed": 115,
+        "dataset_source": "E:\\LR 1\\intern_1\\data\\synthetic\\reports.json",
+        "matching": "Exact labeled span when offsets are supplied; otherwise exact case-insensitive entity text."
+      },
+      "details": [
+        {
+          "document_id": "R000001",
+          "entities_predicted": 5,
+          "latency_seconds": 0.0016540000005988986,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000002",
+          "entities_predicted": 2,
+          "latency_seconds": 0.00021329999981389847,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000003",
+          "entities_predicted": 2,
+          "latency_seconds": 0.00015489999987039482,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000004",
+          "entities_predicted": 3,
+          "latency_seconds": 0.00016210000012506498,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000005",
+          "entities_predicted": 3,
+          "latency_seconds": 0.00014120000014372636,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000006",
+          "entities_predicted": 3,
+          "latency_seconds": 0.00014180000016494887,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000007",
+          "entities_predicted": 4,
+          "latency_seconds": 0.00015149999944696901,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000008",
+          "entities_predicted": 3,
+          "latency_seconds": 0.00015869999970163917,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000009",
+          "entities_predicted": 3,
+          "latency_seconds": 0.00013349999971978832,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000010",
+          "entities_predicted": 2,
+          "latency_seconds": 0.00012659999993047677,
+          "ground_truth_available": false
+        }
+      ],
+      "stage_timings": [],
+      "resource_metrics": [
+        {
+          "suite": "ner",
+          "elapsed_seconds": 0.019618399999671965,
+          "process_cpu_percent": 0.0,
+          "system_cpu_percent": 14.3,
+          "system_ram_percent": 81.0,
+          "process_memory_mb": 201.03515625,
+          "peak_process_memory_mb": 201.03515625,
+          "gpu_utilization_percent": null,
+          "gpu_memory_used_mb": null,
+          "gpu_memory_total_mb": null
+        }
+      ],
+      "warnings": [
+        "No entity ground truth found; precision, recall, and F1 are unavailable."
+      ],
+      "errors": []
+    },
+    {
+      "suite": "medication",
+      "metrics": {
+        "medication_name_precision": null,
+        "medication_name_recall": null,
+        "medication_name_f1": null,
+        "attribute_accuracy": {
+          "dose": null,
+          "frequency": null,
+          "route": null,
+          "duration": null
+        },
+        "normalization_accuracy": null,
+        "complete_record_accuracy": null,
+        "documents": 10,
+        "annotated_documents": 0,
+        "accuracy_metrics_available": false,
+        "medication_records_predicted": 10,
+        "average_latency_seconds": 0.00019002999997610459,
+        "latency": {
+          "average_seconds": 0.00019002999997610459,
+          "median_seconds": 0.00017534999960844289,
+          "p50_seconds": 0.00017534999960844289,
+          "p90_seconds": 0.0002032700000199838,
+          "p95_seconds": 0.0002638849999129889,
+          "p99_seconds": 0.0003123769998273929
+        },
+        "records_per_second": 5262.327001661556,
+        "dataset_source": "E:\\LR 1\\intern_1\\data\\synthetic\\reports.json"
+      },
+      "details": [
+        {
+          "document_id": "R000001",
+          "medications_predicted": 1,
+          "latency_seconds": 0.00032449999980599387,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000002",
+          "medications_predicted": 1,
+          "latency_seconds": 0.00018980000004376052,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000003",
+          "medications_predicted": 1,
+          "latency_seconds": 0.00017599999955564272,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000004",
+          "medications_predicted": 1,
+          "latency_seconds": 0.00017469999966124306,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000005",
+          "medications_predicted": 1,
+          "latency_seconds": 0.0001650000003792229,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000006",
+          "medications_predicted": 1,
+          "latency_seconds": 0.0001742999993439298,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000007",
+          "medications_predicted": 1,
+          "latency_seconds": 0.00018200000067736255,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000008",
+          "medications_predicted": 1,
+          "latency_seconds": 0.00018540000019129366,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000009",
+          "medications_predicted": 1,
+          "latency_seconds": 0.0001675000003160676,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000010",
+          "medications_predicted": 1,
+          "latency_seconds": 0.00016109999978652922,
+          "ground_truth_available": false
+        }
+      ],
+      "stage_timings": [],
+      "resource_metrics": [
+        {
+          "suite": "medication",
+          "elapsed_seconds": 0.005616100000224833,
+          "process_cpu_percent": 0.0,
+          "system_cpu_percent": 0.0,
+          "system_ram_percent": 81.0,
+          "process_memory_mb": 201.125,
+          "peak_process_memory_mb": 201.125,
+          "gpu_utilization_percent": null,
+          "gpu_memory_used_mb": null,
+          "gpu_memory_total_mb": null
+        }
+      ],
+      "warnings": [
+        "No medication ground truth found; accuracy metrics are unavailable.",
+        "Dosage/frequency/route/duration accuracy is N/A where annotations omit that attribute."
+      ],
+      "errors": []
+    },
+    {
+      "suite": "relation",
+      "metrics": {
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "subject_object_direction_accuracy": null,
+        "relation_classification_accuracy": null,
+        "invalid_relation_rate": 0.0,
+        "invalid_relations": 0,
+        "relations_predicted": 20,
+        "documents": 10,
+        "annotated_documents": 0,
+        "accuracy_metrics_available": false,
+        "average_seconds_per_document": 0.00022268000002441114,
+        "latency": {
+          "average_seconds": 0.00022268000002441114,
+          "median_seconds": 0.00019100000008620555,
+          "p50_seconds": 0.00019100000008620555,
+          "p90_seconds": 0.0002449600001455109,
+          "p95_seconds": 0.0003748299998278528,
+          "p99_seconds": 0.0004787259995737259
+        },
+        "relations_per_second": 8981.498112900807,
+        "dataset_source": "E:\\LR 1\\intern_1\\data\\synthetic\\reports.json"
+      },
+      "details": [
+        {
+          "document_id": "R000001",
+          "relations_predicted": 4,
+          "latency_seconds": 0.0005046999995101942,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000002",
+          "relations_predicted": 1,
+          "latency_seconds": 0.00019919999976991676,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000003",
+          "relations_predicted": 1,
+          "latency_seconds": 0.00018210000052931719,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000004",
+          "relations_predicted": 2,
+          "latency_seconds": 0.00019220000012865057,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000005",
+          "relations_predicted": 2,
+          "latency_seconds": 0.000204699999812874,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000006",
+          "relations_predicted": 2,
+          "latency_seconds": 0.0001878000002761837,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000007",
+          "relations_predicted": 3,
+          "latency_seconds": 0.00021610000021610176,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000008",
+          "relations_predicted": 2,
+          "latency_seconds": 0.00018980000004376052,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000009",
+          "relations_predicted": 2,
+          "latency_seconds": 0.00017910000042320462,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000010",
+          "relations_predicted": 1,
+          "latency_seconds": 0.00017109999953390798,
+          "ground_truth_available": false
+        }
+      ],
+      "stage_timings": [],
+      "resource_metrics": [
+        {
+          "suite": "relation",
+          "elapsed_seconds": 0.003197099999852071,
+          "process_cpu_percent": 0.0,
+          "system_cpu_percent": 40.0,
+          "system_ram_percent": 81.0,
+          "process_memory_mb": 201.25,
+          "peak_process_memory_mb": 201.25,
+          "gpu_utilization_percent": null,
+          "gpu_memory_used_mb": null,
+          "gpu_memory_total_mb": null
+        }
+      ],
+      "warnings": [
+        "Mock mode uses deterministic relation fallback rules, which can assert broad medication-condition links.",
+        "No annotated relations found; relation accuracy metrics are unavailable."
+      ],
+      "errors": []
+    },
+    {
+      "suite": "grounding",
+      "metrics": {
+        "top1_accuracy": null,
+        "fallback_top1_accuracy": null,
+        "exact_match_accuracy": null,
+        "semantic_match_accuracy": null,
+        "semantic_match_definition": "Reference code match or exact normalized concept-name match; no semantic equivalence is inferred.",
+        "recall_at_5": null,
+        "recall_at_10": null,
+        "mean_reciprocal_rank": null,
+        "top_k_accuracy": {
+          "top_1": null,
+          "top_5": null,
+          "top_10": null
+        },
+        "grounding_latency_seconds": 0.00025275999987570683,
+        "grounding_latency_p95_seconds": 0.0003686849997393439,
+        "unmapped_entity_percentage": 36.666666666666664,
+        "mapped_entities": 19,
+        "entities": 30,
+        "annotated_mappings": 0,
+        "accuracy_metrics_available": false,
+        "grounding_mode": "deterministic fallback",
+        "documents": 10,
+        "groundings_per_second": 11868.966614477098,
+        "dataset_source": "E:\\LR 1\\intern_1\\data\\synthetic\\reports.json"
+      },
+      "details": [
+        {
+          "document_id": "R000001",
+          "entities": 5,
+          "mapped_entities": 4,
+          "latency_seconds": 0.00045899999986431794,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000002",
+          "entities": 2,
+          "mapped_entities": 2,
+          "latency_seconds": 0.00024819999998726416,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000003",
+          "entities": 2,
+          "mapped_entities": 1,
+          "latency_seconds": 0.0002068999992843601,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000004",
+          "entities": 3,
+          "mapped_entities": 2,
+          "latency_seconds": 0.00023230000078910962,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000005",
+          "entities": 3,
+          "mapped_entities": 1,
+          "latency_seconds": 0.00025829999958659755,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000006",
+          "entities": 3,
+          "mapped_entities": 3,
+          "latency_seconds": 0.00023499999952036887,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000007",
+          "entities": 4,
+          "mapped_entities": 3,
+          "latency_seconds": 0.00025379999988217605,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000008",
+          "entities": 3,
+          "mapped_entities": 2,
+          "latency_seconds": 0.00022319999970932258,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000009",
+          "entities": 3,
+          "mapped_entities": 0,
+          "latency_seconds": 0.00021410000044852495,
+          "ground_truth_available": false
+        },
+        {
+          "document_id": "R000010",
+          "entities": 2,
+          "mapped_entities": 1,
+          "latency_seconds": 0.0001967999996850267,
+          "ground_truth_available": false
+        }
+      ],
+      "stage_timings": [],
+      "resource_metrics": [
+        {
+          "suite": "grounding",
+          "elapsed_seconds": 0.003950700000132201,
+          "process_cpu_percent": 0.0,
+          "system_cpu_percent": 0.0,
+          "system_ram_percent": 81.0,
+          "process_memory_mb": 201.3515625,
+          "peak_process_memory_mb": 201.3515625,
+          "gpu_utilization_percent": null,
+          "gpu_memory_used_mb": null,
+          "gpu_memory_total_mb": null
+        }
+      ],
+      "warnings": [
+        "Mock mode bypasses embedding retrieval; top-1 scores describe only deterministic fallback mappings and rank metrics are unavailable."
+      ],
+      "errors": []
+    },
+    {
+      "suite": "verification",
+      "metrics": {
+        "flag_precision": null,
+        "flag_recall": null,
+        "flag_f1": null,
+        "false_positive_rate": null,
+        "false_negative_rate": null,
+        "verification_accuracy": null,
+        "per_flag": {
+          "DIAGNOSIS_ENTAILMENT": {
+            "precision": null,
+            "recall": null
+          },
+          "DOSAGE_CONTRADICTION": {
+            "precision": null,
+            "recall": null
+          },
+          "DRUG_PLAUSIBILITY": {
+            "precision": null,
+            "recall": null
+          },
+          "FHIR_SCHEMA": {
+            "precision": null,
+            "recall": null
+          },
+          "LAB_RANGE": {
+            "precision": null,
+            "recall": null
+          },
+          "OCR_UNCERTAINTY": {
+            "precision": null,
+            "recall": null
+          },
+          "UNSUPPORTED_CLAIM": {
+            "precision": null,
+            "recall": null
+          }
+        },
+        "unsupported_claim_detection_precision": null,
+        "unsupported_claim_detection_recall": null,
+        "citation_source_support_rate": null,
+        "documents": 0,
+        "annotated_documents": 0,
+        "accuracy_metrics_available": false,
+        "latency": {
+          "average_seconds": null,
+          "median_seconds": null,
+          "p50_seconds": null,
+          "p90_seconds": null,
+          "p95_seconds": null,
+          "p99_seconds": null
+        },
+        "dataset_source": "not configured"
+      },
+      "details": [],
+      "stage_timings": [],
+      "resource_metrics": [
+        {
+          "suite": "verification",
+          "elapsed_seconds": 0.0029119999999238644,
+          "process_cpu_percent": 0.0,
+          "system_cpu_percent": 0.0,
+          "system_ram_percent": 81.0,
+          "process_memory_mb": 201.3671875,
+          "peak_process_memory_mb": 201.3671875,
+          "gpu_utilization_percent": null,
+          "gpu_memory_used_mb": null,
+          "gpu_memory_total_mb": null
+        }
+      ],
+      "warnings": [
+        "No expected verifier flags found; verification accuracy metrics are unavailable.",
+        "The current verifier implements selected rule-based checks; general unsupported-claim detection and citation support are not implemented."
+      ],
+      "errors": []
+    },
+    {
+      "suite": "pipeline",
+      "metrics": {
+        "documents": 10,
+        "successful_documents": 10,
+        "failed_documents": 0,
+        "success_rate": 1.0,
+        "failure_rate": 0.0,
+        "average_seconds": 0.008556849999786209,
+        "median_seconds": 0.008068050000019866,
+        "p50_seconds": 0.008068050000019866,
+        "p90_seconds": 0.009346929999810525,
+        "p95_seconds": 0.011623614999643908,
+        "p99_seconds": 0.013444962999510607,
+        "total_execution_seconds": 0.08556849999786209,
+        "documents_per_second": 116.86543529744996,
+        "average_entities_per_document": 3.0,
+        "average_relationships_per_document": 2.0,
+        "dataset_source": "E:\\LR 1\\intern_1\\data\\synthetic\\reports.json",
+        "database": "temporary SQLite database; removed after suite"
+      },
+      "details": [
+        {
+          "document_id": "R000001",
+          "success": true,
+          "entities": 5,
+          "relations": 4,
+          "verification_status": "PASS"
+        },
+        {
+          "document_id": "R000002",
+          "success": true,
+          "entities": 2,
+          "relations": 1,
+          "verification_status": "PASS"
+        },
+        {
+          "document_id": "R000003",
+          "success": true,
+          "entities": 2,
+          "relations": 1,
+          "verification_status": "PASS"
+        },
+        {
+          "document_id": "R000004",
+          "success": true,
+          "entities": 3,
+          "relations": 2,
+          "verification_status": "PASS"
+        },
+        {
+          "document_id": "R000005",
+          "success": true,
+          "entities": 3,
+          "relations": 2,
+          "verification_status": "PASS"
+        },
+        {
+          "document_id": "R000006",
+          "success": true,
+          "entities": 3,
+          "relations": 2,
+          "verification_status": "PASS"
+        },
+        {
+          "document_id": "R000007",
+          "success": true,
+          "entities": 4,
+          "relations": 3,
+          "verification_status": "PASS"
+        },
+        {
+          "document_id": "R000008",
+          "success": true,
+          "entities": 3,
+          "relations": 2,
+          "verification_status": "PASS"
+        },
+        {
+          "document_id": "R000009",
+          "success": true,
+          "entities": 3,
+          "relations": 2,
+          "verification_status": "PASS"
+        },
+        {
+          "document_id": "R000010",
+          "success": true,
+          "entities": 2,
+          "relations": 1,
+          "verification_status": "PASS"
+        }
+      ],
+      "stage_timings": [
+        {
+          "document_id": null,
+          "stage": "database_initialization",
+          "elapsed_seconds": 0.010894299999563373
+        },
+        {
+          "document_id": "R000001",
+          "stage": "document_ingestion",
+          "elapsed_seconds": 3.670000023703324e-05
+        },
+        {
+          "document_id": "R000001",
+          "stage": "ocr",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_input"
+        },
+        {
+          "document_id": "R000001",
+          "stage": "preprocessing",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_endpoint"
+        },
+        {
+          "document_id": "R000001",
+          "stage": "orchestration",
+          "elapsed_seconds": 7.479999931092607e-05
+        },
+        {
+          "document_id": "R000001",
+          "stage": "ner",
+          "elapsed_seconds": 0.0001953999999386724
+        },
+        {
+          "document_id": "R000001",
+          "stage": "medication",
+          "elapsed_seconds": 4.850000004807953e-05
+        },
+        {
+          "document_id": "R000001",
+          "stage": "clinical_processing",
+          "elapsed_seconds": 2.570000015111873e-05
+        },
+        {
+          "document_id": "R000001",
+          "stage": "relation",
+          "elapsed_seconds": 8.749999960855348e-05
+        },
+        {
+          "document_id": "R000001",
+          "stage": "grounding",
+          "elapsed_seconds": 0.00015160000020841835
+        },
+        {
+          "document_id": "R000001",
+          "stage": "clinical_synthesis",
+          "elapsed_seconds": 3.9399999877787195e-05
+        },
+        {
+          "document_id": "R000001",
+          "stage": "verification",
+          "elapsed_seconds": 2.3399999918183312e-05
+        },
+        {
+          "document_id": "R000001",
+          "stage": "final_response_generation",
+          "elapsed_seconds": 0.00014879999980621506
+        },
+        {
+          "document_id": "R000001",
+          "stage": "database_persistence",
+          "elapsed_seconds": 0.006500200000118639
+        },
+        {
+          "document_id": "R000001",
+          "stage": "total",
+          "elapsed_seconds": 0.013900299999477284
+        },
+        {
+          "document_id": "R000002",
+          "stage": "document_ingestion",
+          "elapsed_seconds": 4.299999909562757e-05
+        },
+        {
+          "document_id": "R000002",
+          "stage": "ocr",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_input"
+        },
+        {
+          "document_id": "R000002",
+          "stage": "preprocessing",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_endpoint"
+        },
+        {
+          "document_id": "R000002",
+          "stage": "orchestration",
+          "elapsed_seconds": 3.0700000024808105e-05
+        },
+        {
+          "document_id": "R000002",
+          "stage": "ner",
+          "elapsed_seconds": 0.00016899999991437653
+        },
+        {
+          "document_id": "R000002",
+          "stage": "medication",
+          "elapsed_seconds": 4.760000047099311e-05
+        },
+        {
+          "document_id": "R000002",
+          "stage": "clinical_processing",
+          "elapsed_seconds": 2.069999936793465e-05
+        },
+        {
+          "document_id": "R000002",
+          "stage": "relation",
+          "elapsed_seconds": 6.490000032499665e-05
+        },
+        {
+          "document_id": "R000002",
+          "stage": "grounding",
+          "elapsed_seconds": 8.729999990464421e-05
+        },
+        {
+          "document_id": "R000002",
+          "stage": "clinical_synthesis",
+          "elapsed_seconds": 2.769999991869554e-05
+        },
+        {
+          "document_id": "R000002",
+          "stage": "verification",
+          "elapsed_seconds": 1.9300000531075057e-05
+        },
+        {
+          "document_id": "R000002",
+          "stage": "final_response_generation",
+          "elapsed_seconds": 0.00010259999999107094
+        },
+        {
+          "document_id": "R000002",
+          "stage": "database_persistence",
+          "elapsed_seconds": 0.006022999999913736
+        },
+        {
+          "document_id": "R000002",
+          "stage": "total",
+          "elapsed_seconds": 0.007273599999280123
+        },
+        {
+          "document_id": "R000003",
+          "stage": "document_ingestion",
+          "elapsed_seconds": 3.8300000596791506e-05
+        },
+        {
+          "document_id": "R000003",
+          "stage": "ocr",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_input"
+        },
+        {
+          "document_id": "R000003",
+          "stage": "preprocessing",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_endpoint"
+        },
+        {
+          "document_id": "R000003",
+          "stage": "orchestration",
+          "elapsed_seconds": 3.20999997711624e-05
+        },
+        {
+          "document_id": "R000003",
+          "stage": "ner",
+          "elapsed_seconds": 0.00017109999953390798
+        },
+        {
+          "document_id": "R000003",
+          "stage": "medication",
+          "elapsed_seconds": 4.220000027999049e-05
+        },
+        {
+          "document_id": "R000003",
+          "stage": "clinical_processing",
+          "elapsed_seconds": 1.8700000509852543e-05
+        },
+        {
+          "document_id": "R000003",
+          "stage": "relation",
+          "elapsed_seconds": 6.010000015521655e-05
+        },
+        {
+          "document_id": "R000003",
+          "stage": "grounding",
+          "elapsed_seconds": 9.130000034929253e-05
+        },
+        {
+          "document_id": "R000003",
+          "stage": "clinical_synthesis",
+          "elapsed_seconds": 2.519999998185085e-05
+        },
+        {
+          "document_id": "R000003",
+          "stage": "verification",
+          "elapsed_seconds": 2.029999996011611e-05
+        },
+        {
+          "document_id": "R000003",
+          "stage": "final_response_generation",
+          "elapsed_seconds": 9.680000039224979e-05
+        },
+        {
+          "document_id": "R000003",
+          "stage": "database_persistence",
+          "elapsed_seconds": 0.007429199999933189
+        },
+        {
+          "document_id": "R000003",
+          "stage": "total",
+          "elapsed_seconds": 0.008640199999717879
+        },
+        {
+          "document_id": "R000004",
+          "stage": "document_ingestion",
+          "elapsed_seconds": 3.199999991920777e-05
+        },
+        {
+          "document_id": "R000004",
+          "stage": "ocr",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_input"
+        },
+        {
+          "document_id": "R000004",
+          "stage": "preprocessing",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_endpoint"
+        },
+        {
+          "document_id": "R000004",
+          "stage": "orchestration",
+          "elapsed_seconds": 3.120000019407598e-05
+        },
+        {
+          "document_id": "R000004",
+          "stage": "ner",
+          "elapsed_seconds": 0.0001815999994505546
+        },
+        {
+          "document_id": "R000004",
+          "stage": "medication",
+          "elapsed_seconds": 4.200000057608122e-05
+        },
+        {
+          "document_id": "R000004",
+          "stage": "clinical_processing",
+          "elapsed_seconds": 2.029999996011611e-05
+        },
+        {
+          "document_id": "R000004",
+          "stage": "relation",
+          "elapsed_seconds": 8.22000001790002e-05
+        },
+        {
+          "document_id": "R000004",
+          "stage": "grounding",
+          "elapsed_seconds": 0.0001863999996203347
+        },
+        {
+          "document_id": "R000004",
+          "stage": "clinical_synthesis",
+          "elapsed_seconds": 5.2099999265919905e-05
+        },
+        {
+          "document_id": "R000004",
+          "stage": "verification",
+          "elapsed_seconds": 4.259999968780903e-05
+        },
+        {
+          "document_id": "R000004",
+          "stage": "final_response_generation",
+          "elapsed_seconds": 0.00016180000056920107
+        },
+        {
+          "document_id": "R000004",
+          "stage": "database_persistence",
+          "elapsed_seconds": 0.006624399999964226
+        },
+        {
+          "document_id": "R000004",
+          "stage": "total",
+          "elapsed_seconds": 0.008480600000439154
+        },
+        {
+          "document_id": "R000005",
+          "stage": "document_ingestion",
+          "elapsed_seconds": 4.509999962465372e-05
+        },
+        {
+          "document_id": "R000005",
+          "stage": "ocr",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_input"
+        },
+        {
+          "document_id": "R000005",
+          "stage": "preprocessing",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_endpoint"
+        },
+        {
+          "document_id": "R000005",
+          "stage": "orchestration",
+          "elapsed_seconds": 5.18000006195507e-05
+        },
+        {
+          "document_id": "R000005",
+          "stage": "ner",
+          "elapsed_seconds": 0.0002789999998640269
+        },
+        {
+          "document_id": "R000005",
+          "stage": "medication",
+          "elapsed_seconds": 6.329999996523838e-05
+        },
+        {
+          "document_id": "R000005",
+          "stage": "clinical_processing",
+          "elapsed_seconds": 2.390000008745119e-05
+        },
+        {
+          "document_id": "R000005",
+          "stage": "relation",
+          "elapsed_seconds": 8.38999994812184e-05
+        },
+        {
+          "document_id": "R000005",
+          "stage": "grounding",
+          "elapsed_seconds": 0.00013639999997394625
+        },
+        {
+          "document_id": "R000005",
+          "stage": "clinical_synthesis",
+          "elapsed_seconds": 3.930000002583256e-05
+        },
+        {
+          "document_id": "R000005",
+          "stage": "verification",
+          "elapsed_seconds": 0.00019439999960013665
+        },
+        {
+          "document_id": "R000005",
+          "stage": "final_response_generation",
+          "elapsed_seconds": 0.00012870000045950292
+        },
+        {
+          "document_id": "R000005",
+          "stage": "database_persistence",
+          "elapsed_seconds": 0.006816199999775563
+        },
+        {
+          "document_id": "R000005",
+          "stage": "total",
+          "elapsed_seconds": 0.008840999999847554
+        },
+        {
+          "document_id": "R000006",
+          "stage": "document_ingestion",
+          "elapsed_seconds": 3.35000004270114e-05
+        },
+        {
+          "document_id": "R000006",
+          "stage": "ocr",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_input"
+        },
+        {
+          "document_id": "R000006",
+          "stage": "preprocessing",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_endpoint"
+        },
+        {
+          "document_id": "R000006",
+          "stage": "orchestration",
+          "elapsed_seconds": 3.3600000278966036e-05
+        },
+        {
+          "document_id": "R000006",
+          "stage": "ner",
+          "elapsed_seconds": 0.0001770999997461331
+        },
+        {
+          "document_id": "R000006",
+          "stage": "medication",
+          "elapsed_seconds": 4.400000034365803e-05
+        },
+        {
+          "document_id": "R000006",
+          "stage": "clinical_processing",
+          "elapsed_seconds": 2.13999992411118e-05
+        },
+        {
+          "document_id": "R000006",
+          "stage": "relation",
+          "elapsed_seconds": 6.719999964843737e-05
+        },
+        {
+          "document_id": "R000006",
+          "stage": "grounding",
+          "elapsed_seconds": 0.00010269999984302558
+        },
+        {
+          "document_id": "R000006",
+          "stage": "clinical_synthesis",
+          "elapsed_seconds": 2.679999943211442e-05
+        },
+        {
+          "document_id": "R000006",
+          "stage": "verification",
+          "elapsed_seconds": 1.9300000531075057e-05
+        },
+        {
+          "document_id": "R000006",
+          "stage": "final_response_generation",
+          "elapsed_seconds": 0.00010329999986424809
+        },
+        {
+          "document_id": "R000006",
+          "stage": "database_persistence",
+          "elapsed_seconds": 0.0065948999999818625
+        },
+        {
+          "document_id": "R000006",
+          "stage": "total",
+          "elapsed_seconds": 0.008078400000158581
+        },
+        {
+          "document_id": "R000007",
+          "stage": "document_ingestion",
+          "elapsed_seconds": 3.110000034212135e-05
+        },
+        {
+          "document_id": "R000007",
+          "stage": "ocr",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_input"
+        },
+        {
+          "document_id": "R000007",
+          "stage": "preprocessing",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_endpoint"
+        },
+        {
+          "document_id": "R000007",
+          "stage": "orchestration",
+          "elapsed_seconds": 3.1600000511389226e-05
+        },
+        {
+          "document_id": "R000007",
+          "stage": "ner",
+          "elapsed_seconds": 0.00025400000049558
+        },
+        {
+          "document_id": "R000007",
+          "stage": "medication",
+          "elapsed_seconds": 4.689999968832126e-05
+        },
+        {
+          "document_id": "R000007",
+          "stage": "clinical_processing",
+          "elapsed_seconds": 2.2400000489142258e-05
+        },
+        {
+          "document_id": "R000007",
+          "stage": "relation",
+          "elapsed_seconds": 8.240000079240417e-05
+        },
+        {
+          "document_id": "R000007",
+          "stage": "grounding",
+          "elapsed_seconds": 0.0001222000000780099
+        },
+        {
+          "document_id": "R000007",
+          "stage": "clinical_synthesis",
+          "elapsed_seconds": 3.1599999601894524e-05
+        },
+        {
+          "document_id": "R000007",
+          "stage": "verification",
+          "elapsed_seconds": 2.0000000404252205e-05
+        },
+        {
+          "document_id": "R000007",
+          "stage": "final_response_generation",
+          "elapsed_seconds": 0.00011549999999260763
+        },
+        {
+          "document_id": "R000007",
+          "stage": "database_persistence",
+          "elapsed_seconds": 0.006529199999931734
+        },
+        {
+          "document_id": "R000007",
+          "stage": "total",
+          "elapsed_seconds": 0.008057699999881152
+        },
+        {
+          "document_id": "R000008",
+          "stage": "document_ingestion",
+          "elapsed_seconds": 3.279999964433955e-05
+        },
+        {
+          "document_id": "R000008",
+          "stage": "ocr",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_input"
+        },
+        {
+          "document_id": "R000008",
+          "stage": "preprocessing",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_endpoint"
+        },
+        {
+          "document_id": "R000008",
+          "stage": "orchestration",
+          "elapsed_seconds": 3.3399999665562063e-05
+        },
+        {
+          "document_id": "R000008",
+          "stage": "ner",
+          "elapsed_seconds": 0.00017750000006344635
+        },
+        {
+          "document_id": "R000008",
+          "stage": "medication",
+          "elapsed_seconds": 3.9200000173877925e-05
+        },
+        {
+          "document_id": "R000008",
+          "stage": "clinical_processing",
+          "elapsed_seconds": 2.0000000404252205e-05
+        },
+        {
+          "document_id": "R000008",
+          "stage": "relation",
+          "elapsed_seconds": 6.599999960599234e-05
+        },
+        {
+          "document_id": "R000008",
+          "stage": "grounding",
+          "elapsed_seconds": 0.00010490000022400636
+        },
+        {
+          "document_id": "R000008",
+          "stage": "clinical_synthesis",
+          "elapsed_seconds": 2.7099999897473026e-05
+        },
+        {
+          "document_id": "R000008",
+          "stage": "verification",
+          "elapsed_seconds": 2.0399999812070746e-05
+        },
+        {
+          "document_id": "R000008",
+          "stage": "final_response_generation",
+          "elapsed_seconds": 9.919999956764514e-05
+        },
+        {
+          "document_id": "R000008",
+          "stage": "database_persistence",
+          "elapsed_seconds": 0.006058899999516143
+        },
+        {
+          "document_id": "R000008",
+          "stage": "total",
+          "elapsed_seconds": 0.007358799999565235
+        },
+        {
+          "document_id": "R000009",
+          "stage": "document_ingestion",
+          "elapsed_seconds": 4.1900000724126585e-05
+        },
+        {
+          "document_id": "R000009",
+          "stage": "ocr",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_input"
+        },
+        {
+          "document_id": "R000009",
+          "stage": "preprocessing",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_endpoint"
+        },
+        {
+          "document_id": "R000009",
+          "stage": "orchestration",
+          "elapsed_seconds": 4.220000027999049e-05
+        },
+        {
+          "document_id": "R000009",
+          "stage": "ner",
+          "elapsed_seconds": 0.0002334000000701053
+        },
+        {
+          "document_id": "R000009",
+          "stage": "medication",
+          "elapsed_seconds": 5.80000005356851e-05
+        },
+        {
+          "document_id": "R000009",
+          "stage": "clinical_processing",
+          "elapsed_seconds": 2.8000000384054147e-05
+        },
+        {
+          "document_id": "R000009",
+          "stage": "relation",
+          "elapsed_seconds": 7.399999958579428e-05
+        },
+        {
+          "document_id": "R000009",
+          "stage": "grounding",
+          "elapsed_seconds": 0.00010660000043571927
+        },
+        {
+          "document_id": "R000009",
+          "stage": "clinical_synthesis",
+          "elapsed_seconds": 2.3999999939405825e-05
+        },
+        {
+          "document_id": "R000009",
+          "stage": "verification",
+          "elapsed_seconds": 1.959999917744426e-05
+        },
+        {
+          "document_id": "R000009",
+          "stage": "final_response_generation",
+          "elapsed_seconds": 8.650000017951243e-05
+        },
+        {
+          "document_id": "R000009",
+          "stage": "database_persistence",
+          "elapsed_seconds": 0.006304200000158744
+        },
+        {
+          "document_id": "R000009",
+          "stage": "total",
+          "elapsed_seconds": 0.007972499999596039
+        },
+        {
+          "document_id": "R000010",
+          "stage": "document_ingestion",
+          "elapsed_seconds": 2.9999999242136255e-05
+        },
+        {
+          "document_id": "R000010",
+          "stage": "ocr",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_input"
+        },
+        {
+          "document_id": "R000010",
+          "stage": "preprocessing",
+          "elapsed_seconds": 0.0,
+          "status": "not_applicable_for_text_endpoint"
+        },
+        {
+          "document_id": "R000010",
+          "stage": "orchestration",
+          "elapsed_seconds": 3.0700000024808105e-05
+        },
+        {
+          "document_id": "R000010",
+          "stage": "ner",
+          "elapsed_seconds": 0.000168600000506558
+        },
+        {
+          "document_id": "R000010",
+          "stage": "medication",
+          "elapsed_seconds": 7.17999992048135e-05
+        },
+        {
+          "document_id": "R000010",
+          "stage": "clinical_processing",
+          "elapsed_seconds": 4.059999992023222e-05
+        },
+        {
+          "document_id": "R000010",
+          "stage": "relation",
+          "elapsed_seconds": 0.00010600000041449675
+        },
+        {
+          "document_id": "R000010",
+          "stage": "grounding",
+          "elapsed_seconds": 0.00011809999978140695
+        },
+        {
+          "document_id": "R000010",
+          "stage": "clinical_synthesis",
+          "elapsed_seconds": 3.840000044874614e-05
+        },
+        {
+          "document_id": "R000010",
+          "stage": "verification",
+          "elapsed_seconds": 2.1400000150606502e-05
+        },
+        {
+          "document_id": "R000010",
+          "stage": "final_response_generation",
+          "elapsed_seconds": 8.53000001370674e-05
+        },
+        {
+          "document_id": "R000010",
+          "stage": "database_persistence",
+          "elapsed_seconds": 0.005441700000119454
+        },
+        {
+          "document_id": "R000010",
+          "stage": "total",
+          "elapsed_seconds": 0.006965399999899091
+        }
+      ],
+      "resource_metrics": [
+        {
+          "suite": "pipeline",
+          "elapsed_seconds": 0.08698650000042107,
+          "process_cpu_percent": 25.2,
+          "system_cpu_percent": 33.1,
+          "system_ram_percent": 81.0,
+          "process_memory_mb": 202.953125,
+          "peak_process_memory_mb": 202.953125,
+          "gpu_utilization_percent": null,
+          "gpu_memory_used_mb": null,
+          "gpu_memory_total_mb": null
+        }
+      ],
+      "warnings": [
+        "Mock mode disables pretrained/external inference and exercises local deterministic fallbacks.",
+        "Stage timings are exclusive wall-clock calls; total latency is measured separately and is not the sum of nested stages.",
+        "Text inputs follow the existing /process route; file inputs follow document/OCR/preprocessing behavior from /process/upload."
+      ],
+      "errors": []
+    },
+    {
+      "suite": "api",
+      "metrics": {
+        "endpoints": [
+          "POST /process",
+          "POST /process/upload"
+        ],
+        "execution_scope": "in-process FastAPI ASGI transport; persistence methods disabled",
+        "requests": 10,
+        "concurrency": 1,
+        "requests_per_second": 19.157260611331022,
+        "average_seconds": 0.013305779999973311,
+        "median_seconds": 0.013229300000148214,
+        "p50_seconds": 0.013229300000148214,
+        "p90_seconds": 0.021475459999692248,
+        "p95_seconds": 0.022171879999632438,
+        "p99_seconds": 0.02272901599958459,
+        "http_4xx_errors": 0,
+        "http_5xx_errors": 0,
+        "request_error_count": 0,
+        "timeout_count": 0,
+        "timeout_rate": 0.0,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "dataset_source": "E:\\LR 1\\intern_1\\data\\synthetic\\reports.json",
+        "elapsed_seconds": 0.5219953000005262
+      },
+      "details": [],
+      "stage_timings": [],
+      "resource_metrics": [
+        {
+          "suite": "api",
+          "elapsed_seconds": 0.522936800000025,
+          "process_cpu_percent": 50.949999999999996,
+          "system_cpu_percent": 20.683333333333334,
+          "system_ram_percent": 81.1,
+          "process_memory_mb": 217.90234375,
+          "peak_process_memory_mb": 217.90234375,
+          "gpu_utilization_percent": null,
+          "gpu_memory_used_mb": null,
+          "gpu_memory_total_mb": null
+        }
+      ],
+      "warnings": [
+        "Mock mode disables pretrained/external inference; API persistence is stubbed to protect application data.",
+        "FastAPI's /process handler executes the agent graph synchronously; concurrent clients may be serialized by the event loop."
+      ],
+      "errors": []
+    },
+    {
+      "suite": "database",
+      "metrics": {
+        "backend": "SQLite",
+        "database_scope": "temporary file; removed when the suite completes",
+        "records": 10,
+        "connection_initialization_seconds": 0.012275499999304884,
+        "insert": {
+          "average_seconds": 0.005515660000037314,
+          "median_seconds": 0.005655850000039209,
+          "p50_seconds": 0.005655850000039209,
+          "p90_seconds": 0.005887580000035086,
+          "p95_seconds": 0.005911789999800021,
+          "p99_seconds": 0.005931157999611969
+        },
+        "update": {
+          "average_seconds": 0.005037460000130523,
+          "median_seconds": 0.005039300000134972,
+          "p50_seconds": 0.005039300000134972,
+          "p90_seconds": 0.005443319999994855,
+          "p95_seconds": 0.0054888600001049784,
+          "p99_seconds": 0.005525292000193076
+        },
+        "select": {
+          "average_seconds": 0.0008177300001079857,
+          "median_seconds": 0.0006904000001668464,
+          "p50_seconds": 0.0006904000001668464,
+          "p90_seconds": 0.0010736800005361146,
+          "p95_seconds": 0.0012873400005901207,
+          "p99_seconds": 0.001458268000633325
+        },
+        "sequential_bulk_insert_seconds": 0.049667199999930745,
+        "sequential_bulk_insert_records_per_second": 201.34011983792007,
+        "bulk_insert_note": "Measured repeated application save_report calls; this is not a native SQL batch insert.",
+        "operation_throughput": 244.8344521207355,
+        "operation_failures": 0,
+        "operation_failure_rate": 0.0
+      },
+      "details": [],
+      "stage_timings": [],
+      "resource_metrics": [
+        {
+          "suite": "database",
+          "elapsed_seconds": 0.16528829999970185,
+          "process_cpu_percent": 17.966666666666665,
+          "system_cpu_percent": 25.8,
+          "system_ram_percent": 81.1,
+          "process_memory_mb": 218.03515625,
+          "peak_process_memory_mb": 218.0546875,
+          "gpu_utilization_percent": null,
+          "gpu_memory_used_mb": null,
+          "gpu_memory_total_mb": null
+        }
+      ],
+      "warnings": [
+        "PostgreSQL was not benchmarked; this suite intentionally uses the application's isolated SQLite path."
+      ],
+      "errors": []
+    },
+    {
+      "suite": "load",
+      "metrics": {
+        "documents_requested": 10,
+        "workers": 1,
+        "elapsed_seconds": 0.028910900000482798,
+        "throughput_documents_per_second": 345.8903043431026,
+        "average_latency_seconds": 0.0025500200001260962,
+        "average_seconds": 0.0025500200001260962,
+        "median_seconds": 0.0022993000002315966,
+        "p50_seconds": 0.0022993000002315966,
+        "p90_seconds": 0.004014030000234924,
+        "p95_seconds": 0.0046644149999792725,
+        "p99_seconds": 0.005184722999774749,
+        "successful_documents": 10,
+        "failed_documents": 0,
+        "failure_rate": 0.0,
+        "cpu_usage_percent": 24.4,
+        "ram_usage_percent": 81.1,
+        "peak_process_memory_mb": 218.171875,
+        "entities_per_document": 2.7,
+        "relations_per_document": 1.7,
+        "dataset_source": "E:\\LR 1\\intern_1\\data\\synthetic\\reports.json",
+        "seed": 42
+      },
+      "details": [],
+      "stage_timings": [],
+      "resource_metrics": [
+        {
+          "suite": "load",
+          "elapsed_seconds": 0.027831800000058138,
+          "process_cpu_percent": 24.4,
+          "system_cpu_percent": 73.35,
+          "system_ram_percent": 81.1,
+          "process_memory_mb": 218.171875,
+          "peak_process_memory_mb": 218.171875,
+          "gpu_utilization_percent": null,
+          "gpu_memory_used_mb": null,
+          "gpu_memory_total_mb": null
+        }
+      ],
+      "warnings": [
+        "Mock workload disables pretrained/external models and does not persist reports."
+      ],
+      "errors": []
+    }
+  ],
+  "warnings": [
+    "No OCR documents configured; accuracy and performance metrics are unavailable.",
+    "No entity ground truth found; precision, recall, and F1 are unavailable.",
+    "No medication ground truth found; accuracy metrics are unavailable.",
+    "Dosage/frequency/route/duration accuracy is N/A where annotations omit that attribute.",
+    "Mock mode uses deterministic relation fallback rules, which can assert broad medication-condition links.",
+    "No annotated relations found; relation accuracy metrics are unavailable.",
+    "Mock mode bypasses embedding retrieval; top-1 scores describe only deterministic fallback mappings and rank metrics are unavailable.",
+    "No expected verifier flags found; verification accuracy metrics are unavailable.",
+    "The current verifier implements selected rule-based checks; general unsupported-claim detection and citation support are not implemented.",
+    "Mock mode disables pretrained/external inference and exercises local deterministic fallbacks.",
+    "Stage timings are exclusive wall-clock calls; total latency is measured separately and is not the sum of nested stages.",
+    "Text inputs follow the existing /process route; file inputs follow document/OCR/preprocessing behavior from /process/upload.",
+    "Mock mode disables pretrained/external inference; API persistence is stubbed to protect application data.",
+    "FastAPI's /process handler executes the agent graph synchronously; concurrent clients may be serialized by the event loop.",
+    "PostgreSQL was not benchmarked; this suite intentionally uses the application's isolated SQLite path.",
+    "Mock workload disables pretrained/external models and does not persist reports."
+  ],
+  "failed_cases": []
+}
