@@ -18,8 +18,8 @@ def orchestrator_node(state: ReportState) -> dict:
     text = state.original_text.lower()
     complex_document = bool(
         (analysis and (analysis.requires_ocr or analysis.document_type == "prescription"))
-        or len(text.split()) > 50
-        or sum(k in text for k in ("medication", "lab", "procedure", "diagnos", "history")) >= 2
+        or len(text.split()) > 30
+        or any(k in text for k in ("prescription", "medication", "lab", "procedure", "diagnos", "history"))
     )
     has_medication_signal = any(k in text for k in (
         "mg", "tablet", "capsule", "medicine", "metformin", "paracetamol", "cetirizine", "amoxicillin",

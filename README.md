@@ -29,7 +29,8 @@ and a persistent SQLite fallback for local development.
   * **Verification / Safety Agent**: Flags potential drug interactions, dosage contradictions, and safety hazards with optional replanning.
   * **Summary Agent**: Generates structured clinical summaries and decision support overviews.
 * **Interactive Web Dashboard**:
-  * The React single-page application in `frontend/` is the only supported frontend, served at `http://localhost:5173/` locally or through the frontend container.
+  * The primary React single-page application in `frontend/` is served at `http://localhost:5173/` locally or through the frontend container.
+  * The legacy dashboard remains available from the FastAPI service at `http://localhost:8000/`.
   * Live multi-agent execution trace inspection, entity cards, relationship maps, and audit trail.
 
 ## Models And External Services
@@ -80,7 +81,7 @@ request that uses a model may take longer and requires outbound network access. 
                └────────────────► [Summary Agent] ◄──────────────┘
                                         │
                                         ▼
-                        [Postgres Audit & Report Store]
+                     [Postgres / SQLite Report Store]
                                         │
                                         ▼
                   [React Clinical Dashboard (Port 5173)]
@@ -105,6 +106,7 @@ request that uses a model may take longer and requires outbound network access. 
 │   ├── timeline.py             # Temporal event timeline construction
 │   └── verifier.py             # Contraindication and dosage verifier
 ├── api/                        # FastAPI service layer
+│   ├── dashboard.py            # Legacy API-served dashboard
 │   └── main.py                 # API router, middleware, and upload endpoints
 ├── data/                       # Local database & ontology indices
 │   ├── db.py                   # Postgres/SQLite report, input, output, and audit storage
@@ -264,6 +266,10 @@ state shape for local fallback and tests.
 ---
 
 ## API Documentation
+
+### Legacy Dashboard
+* **Endpoint**: `GET /`
+* **Response**: The original dashboard served by FastAPI; the React application remains the primary UI.
 
 ### Ingest Plain Clinical Text
 * **Endpoint**: `POST /process`

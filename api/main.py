@@ -7,9 +7,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from schemas.core import AuditEvent, ReportState
+from api.dashboard import DASHBOARD_HTML
 from agents.ocr import OCRAgent
 from agents.document import DocumentAgent
 from agents.orchestrator import graph
@@ -45,11 +46,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_dashboard():
+    """Keep the original API-served dashboard available for compatibility."""
+    return HTMLResponse(content=DASHBOARD_HTML)
+
+
 @app.get("/health")
 async def health_check():
     """Container health probe; does not access document data."""
     return {"status": "ok"}
-
 
 class ProcessRequest(BaseModel):
     document_id: str

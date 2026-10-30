@@ -1,0 +1,12 @@
+.env.example
+.gitignore
+README.md
+agents/ner.py
+agents/relation.py
+api/main.py
+data/db.py
+docker-compose.yml
+frontend/nginx.conf
+frontend/src/App.jsx
+frontend/vite.config.js
+requirements.txt

@@ -368,7 +368,7 @@ def ner_agent(state: ReportState) -> dict:
         audit_trail.append(AuditEvent(
             agent_name="ner_agent",
             action_type="PLAN_UPDATE",
-            details={"message": "Detected drug entities. Added drug_agent to execution plan."}
+            details={"message": "Detected drug entities. Added medication specialist to execution plan."}
         ))
     
     trained_model_used = bool(spacy_entities) and not llm_used
