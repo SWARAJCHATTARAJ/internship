@@ -18,7 +18,12 @@ def test_ner_scispacy_extraction():
     assert "extracted_entities" in result
     audit = result["audit_trail"][-1]
     assert audit.agent_name == "ner_agent"
-    assert audit.action_type in ["SCISPACY_EXTRACTION", "LLM_FALLBACK_EXTRACTION"]
+    assert audit.action_type in [
+        "SCISPACY_EXTRACTION",
+        "LLM_FALLBACK_EXTRACTION",
+        "GEMINI_LLM_EXTRACTION",
+        "HUGGINGFACE_NER_EXTRACTION",
+    ]
 
 def test_ner_llm_fallback():
     """

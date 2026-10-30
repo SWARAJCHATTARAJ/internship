@@ -45,9 +45,13 @@ Thumbs.db
 *.webp
 
 # Project-specific generated artifacts
+dataset/
+*.xlsx
+data/*.db
+*.db
+*.log
 internship/models/
 internship/data/
-*.log
 
 # Environment files / secrets
 .env
@@ -58,17 +62,13 @@ internship/data/
 node_modules/
 frontend/node_modules/
 
-# Tests and temporary artifacts
-tests/
-internship/tests/
-.pytest_cache/
-
 # Local temporary files
 tmp_fastapi/
 
 # Project documents / large non-code files
+md_to_pdf.py
 Project_Documentation.pdf
 Project_Documentation_Final.pdf
+Project_Documentation_Final copy.pdf
 image.png
 Workflow_1.jpg
-package-lock.json

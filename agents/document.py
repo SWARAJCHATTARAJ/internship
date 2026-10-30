@@ -56,5 +56,5 @@ class DocumentAgent:
     def _document_type(text: str) -> str:
         lowered = text.lower()
         if any(token in lowered for token in ("prescription", "rx", "medicine", "dose", "dosage")):
-            return "prescription"  # type: ignore[return-value]
-        return "clinical_report" if text.strip() else "unknown"  # type: ignore[return-value]
+            return "prescription"
+        return "clinical_report" if text.strip() else "unknown"

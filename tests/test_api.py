@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from api.main import app
+from schemas.core import ReportState
 
 client = TestClient(app)
 
@@ -52,3 +53,62 @@ def test_process_report_complex():
     # Check that a summary was generated
     assert data["summary"] is not None
     assert "Clinical Summary" in data["summary"]
+
+
+def test_preserved_reporting_and_file_endpoints(monkeypatch):
+    import api.main as api_main
+
+    monkeypatch.setattr(api_main, "list_reports", lambda limit: [{"document_id": "DOC-1"}])
+    monkeypatch.setattr(
+        api_main,
+        "list_agent_outputs",
+        lambda document_id, page, page_size, agent_name: [{"agent_name": "ner"}],
+    )
+    monkeypatch.setattr(
+        api_main,
+        "list_audit_events",
+        lambda document_id, page, page_size: [{"event": {"action_type": "TEST"}}],
+    )
+    monkeypatch.setattr(api_main, "list_uploads", lambda document_id: [{"id": 7}])
+    monkeypatch.setattr(
+        api_main,
+        "get_upload_content",
+        lambda upload_id: {
+            "filename": "report.pdf",
+            "content": b"pdf bytes",
+            "content_type": "application/pdf",
+        },
+    )
+
+    assert client.get("/reports").json() == [{"document_id": "DOC-1"}]
+    assert client.get("/agents/outputs?document_id=DOC-1").json() == [{"agent_name": "ner"}]
+    assert client.get("/agents/audit?document_id=DOC-1").json() == [
+        {"event": {"action_type": "TEST"}}
+    ]
+    assert client.get("/files?document_id=DOC-1").json() == [{"id": 7}]
+    download = client.get("/files/7")
+    assert download.status_code == 200
+    assert download.content == b"pdf bytes"
+    assert 'filename="report.pdf"' in download.headers["content-disposition"]
+
+
+def test_rerun_endpoint_uses_stored_report(monkeypatch):
+    import api.main as api_main
+
+    state = ReportState(document_id="DOC-RERUN", original_text="Patient follow-up.")
+    saved = []
+
+    class FakeGraph:
+        def invoke(self, existing):
+            assert existing.document_id == state.document_id
+            return existing.model_dump()
+
+    monkeypatch.setattr(api_main, "get_report", lambda document_id: state)
+    monkeypatch.setattr(api_main, "graph", FakeGraph())
+    monkeypatch.setattr(api_main, "save_report", saved.append)
+
+    response = client.post("/process/rerun", json={"document_id": state.document_id})
+    assert response.status_code == 202
+    assert response.json() == {"status": "accepted", "document_id": state.document_id}
+    assert len(saved) == 1
+    assert saved[0].document_id == state.document_id

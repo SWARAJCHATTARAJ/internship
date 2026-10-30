@@ -1,518 +1,544 @@
-import sqlite3
+"""Persistence for clinical reports, inputs, agent outputs, and audit events."""
+
+from __future__ import annotations
+from contextlib import closing
 import json
 import os
-from typing import Optional
+import sqlite3
+from typing import Any, Optional
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from schemas.core import ReportState
-
-# Local SQLite path (fallback)
 DB_PATH = os.path.join(os.path.dirname(__file__), "reports.db")
-
-# If a DATABASE_URL env var is set, use Postgres instead of SQLite
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+def _json(value: Any) -> str:
+    return json.dumps(value, default=str)
 
-def _pg_connect(url: str):
-    import psycopg2
-    from psycopg2.extras import Json
-    conn = psycopg2.connect(url)
-    return conn
+def _state_payload(state: ReportState) -> dict[str, Any]:
+    return state.model_dump(mode="json")
 
-
-def init_db(db_path: str = DB_PATH):
-    """Initializes the database. Uses Postgres when DATABASE_URL set, otherwise SQLite."""
-    if DATABASE_URL:
-        conn = _pg_connect(DATABASE_URL)
-        cur = conn.cursor()
-        cur.execute(
-            '''
+def _init_sqlite(db_path: str) -> None:
+    with closing(sqlite3.connect(db_path)) as conn, conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS reports (
+                document_id TEXT PRIMARY KEY, original_text TEXT, summary TEXT,
+                execution_plan TEXT, extracted_entities TEXT, relations TEXT,
+                verifier_flags TEXT, audit_trail TEXT, replan_count INTEGER,
+                source_text TEXT, source_type TEXT, source_file TEXT, ocr_result TEXT,
+                document_analysis TEXT, medications TEXT, clinical_context TEXT,
+                final_result TEXT, agent_outputs TEXT, execution_trace TEXT,
+                replans TEXT, timeline TEXT, fhir_draft TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        existing_columns = {row[1] for row in cursor.execute("PRAGMA table_info(reports)")}
+        for name, definition in {
+            "source_text": "TEXT",
+            "source_type": "TEXT",
+            "source_file": "TEXT",
+            "ocr_result": "TEXT",
+            "document_analysis": "TEXT",
+            "medications": "TEXT",
+            "clinical_context": "TEXT",
+            "final_result": "TEXT",
+            "agent_outputs": "TEXT",
+            "execution_trace": "TEXT",
+            "replans": "TEXT",
+            "timeline": "TEXT",
+            "fhir_draft": "TEXT",
+            "created_at": "TEXT",
+        }.items():
+            if name not in existing_columns:
+                cursor.execute(f"ALTER TABLE reports ADD COLUMN {name} {definition}")
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS uploads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                document_id TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                content BLOB NOT NULL,
+                content_type TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        cursor.execute("UPDATE reports SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
+
+def _init_postgres() -> None:
+    import psycopg
+
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute("CREATE SCHEMA IF NOT EXISTS agents")
+        conn.execute("CREATE SCHEMA IF NOT EXISTS files")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS agents.agent_outputs (
+                id BIGSERIAL PRIMARY KEY,
+                document_id TEXT,
+                agent_name TEXT,
+                payload JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT now()
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS agents.audit_events (
+                id BIGSERIAL PRIMARY KEY,
+                document_id TEXT,
+                event JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT now()
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS files.uploads (
+                id BIGSERIAL PRIMARY KEY,
+                document_id TEXT,
+                filename TEXT,
+                content BYTEA,
+                content_type TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT now()
+            )
+            """
+        )
+        conn.execute("CREATE SCHEMA IF NOT EXISTS clinical")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS clinical.reports (
                 document_id TEXT PRIMARY KEY,
-                original_text TEXT,
-                summary TEXT,
-                execution_plan JSONB,
-                extracted_entities JSONB,
-                relations JSONB,
-                verifier_flags JSONB,
-                audit_trail JSONB,
-                replan_count INTEGER,
+                state JSONB NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS clinical.report_inputs (
+                document_id TEXT PRIMARY KEY REFERENCES clinical.reports(document_id) ON DELETE CASCADE,
+                original_text TEXT NOT NULL,
                 source_text TEXT,
                 source_type TEXT,
                 source_file TEXT,
                 ocr_result JSONB,
                 document_analysis JSONB,
-                medications JSONB,
-                clinical_context JSONB,
+                received_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS clinical.report_outputs (
+                document_id TEXT PRIMARY KEY REFERENCES clinical.reports(document_id) ON DELETE CASCADE,
+                summary TEXT,
                 final_result JSONB,
-                agent_outputs JSONB,
-                execution_trace JSONB,
-                replans JSONB
+                execution_plan JSONB NOT NULL DEFAULT '[]'::jsonb,
+                execution_trace JSONB NOT NULL DEFAULT '[]'::jsonb,
+                replan_count INTEGER NOT NULL DEFAULT 0,
+                replans JSONB NOT NULL DEFAULT '[]'::jsonb,
+                state JSONB NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
             )
-            '''
+            """
         )
-        # Ensure created_at column exists
-        try:
-            cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT now()")
-        except Exception:
-            # Some Postgres versions may not support IF NOT EXISTS; ignore if fails
-            pass
-        # Create dedicated schemas for agent outputs and uploaded files
-        try:
-            cur.execute('CREATE SCHEMA IF NOT EXISTS agents')
-            cur.execute('CREATE SCHEMA IF NOT EXISTS files')
-            cur.execute(
-                '''
-                CREATE TABLE IF NOT EXISTS agents.agent_outputs (
-                    id SERIAL PRIMARY KEY,
-                    document_id TEXT,
-                    agent_name TEXT,
-                    payload JSONB,
-                    created_at TIMESTAMP DEFAULT now()
-                )
-                '''
-            )
-            cur.execute(
-                '''
-                CREATE TABLE IF NOT EXISTS agents.audit_events (
-                    id SERIAL PRIMARY KEY,
-                    document_id TEXT,
-                    event JSONB,
-                    created_at TIMESTAMP DEFAULT now()
-                )
-                '''
-            )
-            cur.execute(
-                '''
-                CREATE TABLE IF NOT EXISTS files.uploads (
-                    id SERIAL PRIMARY KEY,
-                    document_id TEXT,
-                    filename TEXT,
-                    content BYTEA,
-                    content_type TEXT,
-                    created_at TIMESTAMP DEFAULT now()
-                )
-                '''
-            )
-            # create helpful indexes
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_agents_outputs_doc ON agents.agent_outputs (document_id)')
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_agents_outputs_agent ON agents.agent_outputs (agent_name)')
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_agents_audit_doc ON agents.audit_events (document_id)')
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_files_uploads_doc ON files.uploads (document_id)')
-        except Exception:
-            # Ignore schema/table creation errors to preserve backward compatibility
-            pass
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_clinical_reports_updated ON clinical.reports(updated_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_events_document ON agents.audit_events(document_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_outputs_document ON agents.agent_outputs(document_id)")
         conn.commit()
-        cur.close()
-        conn.close()
-        return
 
-    # SQLite fallback
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS reports (
-            document_id TEXT PRIMARY KEY,
-            original_text TEXT,
-            summary TEXT,
-            execution_plan TEXT,
-            extracted_entities TEXT,
-            relations TEXT,
-            verifier_flags TEXT,
-            audit_trail TEXT,
-            replan_count INTEGER,
-            source_text TEXT,
-            source_type TEXT,
-            source_file TEXT,
-            ocr_result TEXT,
-            document_analysis TEXT,
-            medications TEXT,
-            clinical_context TEXT,
-            final_result TEXT
-            ,agent_outputs TEXT
-            ,execution_trace TEXT
-            ,replans TEXT
+def init_db(db_path: Optional[str] = None) -> None:
+    """Initialize Postgres when configured, otherwise initialize the local test store."""
+    if db_path or not DATABASE_URL:
+        _init_sqlite(db_path or DB_PATH)
+    else:
+        _init_postgres()
+
+def _save_sqlite(state: ReportState, db_path: str) -> None:
+    payload = _state_payload(state)
+    values = {
+        key: _json(payload[key])
+        for key in (
+            "execution_plan", "extracted_entities", "relations", "verifier_flags",
+            "audit_trail", "ocr_result", "document_analysis", "medications",
+            "clinical_context", "final_result", "agent_outputs", "execution_trace",
+            "replans", "timeline", "fhir_draft",
         )
-    ''')
-    existing_columns = {row[1] for row in cursor.execute("PRAGMA table_info(reports)")}
-    for name, definition in {
-        "source_text": "TEXT", "source_type": "TEXT", "source_file": "TEXT", "ocr_result": "TEXT",
-        "document_analysis": "TEXT", "medications": "TEXT", "clinical_context": "TEXT", "final_result": "TEXT",
-        "agent_outputs": "TEXT", "execution_trace": "TEXT", "replans": "TEXT"
-    }.items():
-        if name not in existing_columns:
-            cursor.execute(f"ALTER TABLE reports ADD COLUMN {name} {definition}")
-    # Add created_at for SQLite if missing. SQLite restricts non-constant DEFAULTs
-    # in ALTER TABLE on some versions, so add the column without a default and
-    # backfill existing rows with the current timestamp.
-    if 'created_at' not in existing_columns:
-        cursor.execute("ALTER TABLE reports ADD COLUMN created_at TEXT")
-        try:
-            cursor.execute("UPDATE reports SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
-        except Exception:
-            # Some SQLite builds may not support CURRENT_TIMESTAMP in UPDATE; ignore if fails
-            pass
-    conn.commit()
-    conn.close()
-
-
-def save_report(state: ReportState, db_path: str = DB_PATH):
-    """Saves a ReportState to Postgres (if configured) or SQLite."""
-    payload = {
-        "document_id": state.document_id,
-        "original_text": state.original_text,
-        "summary": state.summary,
-        "execution_plan": state.execution_plan,
-        "extracted_entities": [e.model_dump() for e in state.extracted_entities],
-        "relations": [r.model_dump() for r in state.relations],
-        "verifier_flags": [f.model_dump() for f in state.verifier_flags],
-        "audit_trail": [a.model_dump() for a in state.audit_trail],
-        "replan_count": state.replan_count,
-        "source_text": state.source_text,
-        "source_type": state.source_type,
-        "source_file": state.source_file,
-        "ocr_result": state.ocr_result.model_dump() if state.ocr_result else None,
-        "document_analysis": state.document_analysis.model_dump() if state.document_analysis else None,
-        "medications": [m.model_dump() for m in state.medications],
-        "clinical_context": state.clinical_context,
-        "final_result": state.final_result,
-        "agent_outputs": state.agent_outputs,
-        "execution_trace": state.execution_trace,
-        "replans": state.replans,
     }
-
-    if DATABASE_URL:
-        conn = _pg_connect(DATABASE_URL)
-        from psycopg2.extras import Json
-        cur = conn.cursor()
-        cur.execute(
-            '''
-            INSERT INTO reports (
-                document_id, original_text, summary, execution_plan,
-                extracted_entities, relations, verifier_flags, audit_trail, replan_count,
-                source_text, source_type, source_file, ocr_result, document_analysis, medications, clinical_context, final_result,
-                agent_outputs, execution_trace, replans
-            ) VALUES (%(document_id)s, %(original_text)s, %(summary)s, %(execution_plan)s,
-                      %(extracted_entities)s, %(relations)s, %(verifier_flags)s, %(audit_trail)s, %(replan_count)s,
-                      %(source_text)s, %(source_type)s, %(source_file)s, %(ocr_result)s, %(document_analysis)s, %(medications)s, %(clinical_context)s, %(final_result)s,
-                      %(agent_outputs)s, %(execution_trace)s, %(replans)s)
-            ON CONFLICT (document_id) DO UPDATE SET
-              original_text = EXCLUDED.original_text,
-              summary = EXCLUDED.summary,
-              execution_plan = EXCLUDED.execution_plan,
-              extracted_entities = EXCLUDED.extracted_entities,
-              relations = EXCLUDED.relations,
-              verifier_flags = EXCLUDED.verifier_flags,
-              audit_trail = EXCLUDED.audit_trail,
-              replan_count = EXCLUDED.replan_count,
-              source_text = EXCLUDED.source_text,
-              source_type = EXCLUDED.source_type,
-              source_file = EXCLUDED.source_file,
-              ocr_result = EXCLUDED.ocr_result,
-              document_analysis = EXCLUDED.document_analysis,
-              medications = EXCLUDED.medications,
-              clinical_context = EXCLUDED.clinical_context,
-              final_result = EXCLUDED.final_result,
-              agent_outputs = EXCLUDED.agent_outputs,
-              execution_trace = EXCLUDED.execution_trace,
-              replans = EXCLUDED.replans
-            ''', {
-                    **{k: Json(v) if k in ("execution_plan", "extracted_entities", "relations", "verifier_flags", "audit_trail", "ocr_result", "document_analysis", "medications", "clinical_context", "final_result", "agent_outputs", "execution_trace", "replans") else v for k, v in payload.items()}
-            }
-        )
-        conn.commit()
-        # store individual agent outputs and audit events in dedicated tables for querying
-        try:
-            # agent outputs: expect a dict of {agent_name: payload}
-            if isinstance(state.agent_outputs, dict):
-                for agent_name, payload_obj in state.agent_outputs.items():
-                    try:
-                        cur.execute(
-                            'INSERT INTO agents.agent_outputs (document_id, agent_name, payload) VALUES (%s, %s, %s)',
-                            (state.document_id, agent_name, Json(payload_obj))
-                        )
-                    except Exception:
-                        conn.rollback()
-                        pass
-
-            # audit events: each event should be JSON-serializable
-            for ev in state.audit_trail:
-                try:
-                    # if Pydantic model, convert
-                    ev_obj = ev.model_dump() if hasattr(ev, 'model_dump') else ev
-                    cur.execute(
-                        'INSERT INTO agents.audit_events (document_id, event) VALUES (%s, %s)',
-                        (state.document_id, Json(ev_obj))
-                    )
-                except Exception:
-                    conn.rollback()
-                    pass
-        except Exception:
-            # best-effort: do not fail saving the main report
-            pass
-        # commit any agent/audit inserts (best-effort)
-        try:
-            conn.commit()
-        except Exception:
-            pass
-        cur.close()
-        conn.close()
-        return
-
-    # SQLite fallback
     conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute('''
+    conn.execute(
+        """
         INSERT OR REPLACE INTO reports (
-            document_id, original_text, summary, execution_plan,
-            extracted_entities, relations, verifier_flags, audit_trail, replan_count,
-            source_text, source_type, source_file, ocr_result, document_analysis, medications, clinical_context, final_result,
-            agent_outputs, execution_trace, replans
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        payload["document_id"],
-        payload["original_text"],
-        payload["summary"],
-        json.dumps(payload["execution_plan"]),
-        json.dumps(payload["extracted_entities"]),
-        json.dumps(payload["relations"]),
-        json.dumps(payload["verifier_flags"]),
-        json.dumps(payload["audit_trail"]),
-        payload["replan_count"],
-        payload["source_text"], payload["source_type"], payload["source_file"],
-        json.dumps(payload["ocr_result"]) if payload["ocr_result"] else None,
-        json.dumps(payload["document_analysis"]) if payload["document_analysis"] else None,
-        json.dumps(payload["medications"]), json.dumps(payload["clinical_context"]),
-        json.dumps(payload["final_result"]) if payload["final_result"] else None,
-        json.dumps(payload["agent_outputs"]), json.dumps(payload["execution_trace"]), json.dumps(payload["replans"]),
-    ))
+            document_id, original_text, summary, execution_plan, extracted_entities,
+            relations, verifier_flags, audit_trail, replan_count, source_text,
+            source_type, source_file, ocr_result, document_analysis, medications,
+            clinical_context, final_result, agent_outputs, execution_trace, replans,
+            timeline, fhir_draft, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (
+            state.document_id, state.original_text, state.summary, values["execution_plan"],
+            values["extracted_entities"], values["relations"], values["verifier_flags"],
+            values["audit_trail"], state.replan_count, state.source_text, state.source_type,
+            state.source_file, values["ocr_result"], values["document_analysis"],
+            values["medications"], values["clinical_context"], values["final_result"],
+            values["agent_outputs"], values["execution_trace"], values["replans"],
+            values["timeline"], values["fhir_draft"],
+        ),
+    )
     conn.commit()
     conn.close()
 
+def _save_postgres(state: ReportState) -> None:
+    import psycopg
 
-def get_report(document_id: str, db_path: str = DB_PATH) -> Optional[ReportState]:
-    """Retrieves a ReportState from Postgres (if configured) or SQLite by its document_id."""
-    if DATABASE_URL:
-        conn = _pg_connect(DATABASE_URL)
-        cur = conn.cursor()
-        cur.execute(
-            'SELECT document_id, original_text, summary, execution_plan, extracted_entities, relations, verifier_flags, '
-            'audit_trail, replan_count, source_text, source_type, source_file, ocr_result, document_analysis, '
-            'medications, clinical_context, final_result, agent_outputs, execution_trace, replans '
-            'FROM reports WHERE document_id = %s', (document_id,)
+    payload = _state_payload(state)
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute(
+            """
+            INSERT INTO clinical.reports (document_id, state, updated_at)
+            VALUES (%s, %s::jsonb, now())
+            ON CONFLICT (document_id) DO UPDATE SET state = EXCLUDED.state, updated_at = now()
+            """,
+            (state.document_id, _json(payload)),
         )
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
-        if row is None:
-            return None
-        # Map columns by index as created above
-        (document_id, original_text, summary, execution_plan, extracted_entities, relations, verifier_flags,
-         audit_trail, replan_count, source_text, source_type, source_file, ocr_result, document_analysis,
-         medications, clinical_context, final_result, agent_outputs, execution_trace, replans) = row
+        conn.execute(
+            """
+            INSERT INTO clinical.report_inputs
+                (document_id, original_text, source_text, source_type, source_file, ocr_result, document_analysis)
+            VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s::jsonb)
+            ON CONFLICT (document_id) DO UPDATE SET
+                original_text = EXCLUDED.original_text, source_text = EXCLUDED.source_text,
+                source_type = EXCLUDED.source_type, source_file = EXCLUDED.source_file,
+                ocr_result = EXCLUDED.ocr_result, document_analysis = EXCLUDED.document_analysis
+            """,
+            (state.document_id, state.original_text, state.source_text, state.source_type,
+             state.source_file, _json(payload["ocr_result"]), _json(payload["document_analysis"])),
+        )
+        conn.execute(
+            """
+            INSERT INTO clinical.report_outputs
+                (document_id, summary, final_result, execution_plan, execution_trace,
+                 replan_count, replans, state)
+            VALUES (%s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s, %s::jsonb, %s::jsonb)
+            ON CONFLICT (document_id) DO UPDATE SET
+                summary = EXCLUDED.summary, final_result = EXCLUDED.final_result,
+                execution_plan = EXCLUDED.execution_plan, execution_trace = EXCLUDED.execution_trace,
+                replan_count = EXCLUDED.replan_count, replans = EXCLUDED.replans, state = EXCLUDED.state
+            """,
+            (state.document_id, state.summary, _json(payload["final_result"]),
+             _json(state.execution_plan), _json(state.execution_trace), state.replan_count,
+             _json(state.replans), _json(payload)),
+        )
+        conn.execute("DELETE FROM agents.agent_outputs WHERE document_id = %s", (state.document_id,))
+        for agent_name, output in state.agent_outputs.items():
+            conn.execute(
+                "INSERT INTO agents.agent_outputs (document_id, agent_name, payload) VALUES (%s, %s, %s::jsonb)",
+                (state.document_id, agent_name, _json(output)),
+            )
+        conn.execute("DELETE FROM agents.audit_events WHERE document_id = %s", (state.document_id,))
+        for event in state.audit_trail:
+            conn.execute(
+                "INSERT INTO agents.audit_events (document_id, event) VALUES (%s, %s::jsonb)",
+                (state.document_id, _json(event.model_dump(mode="json"))),
+            )
+        conn.commit()
 
-        state_dict = {
-            "document_id": document_id,
-            "original_text": original_text,
-            "summary": summary,
-            "execution_plan": execution_plan or [],
-            "extracted_entities": extracted_entities or [],
-            "relations": relations or [],
-            "verifier_flags": verifier_flags or [],
-            "audit_trail": audit_trail or [],
-            "replan_count": replan_count or 0,
-            "source_text": source_text,
-            "source_type": source_type,
-            "source_file": source_file,
-            "ocr_result": ocr_result,
-            "document_analysis": document_analysis,
-            "medications": medications or [],
-            "clinical_context": clinical_context or [],
-            "final_result": final_result,
-            "agent_outputs": agent_outputs or {},
-            "execution_trace": execution_trace or [],
-            "replans": replans or [],
-        }
-        return ReportState(**state_dict)
+def save_report(state: ReportState, db_path: Optional[str] = None) -> None:
+    """Persist the complete input/output state and normalized agent telemetry."""
+    if db_path or not DATABASE_URL:
+        _save_sqlite(state, db_path or DB_PATH)
+    else:
+        _save_postgres(state)
 
-    # SQLite fallback
+def _load_sqlite(document_id: str, db_path: str) -> Optional[ReportState]:
     conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    cursor.execute('SELECT * FROM reports WHERE document_id = ?', (document_id,))
-    row = cursor.fetchone()
+    row = conn.execute("SELECT * FROM reports WHERE document_id = ?", (document_id,)).fetchone()
+    columns = [column[1] for column in conn.execute("PRAGMA table_info(reports)")]
     conn.close()
-
     if row is None:
         return None
-
-    state_dict = {
-        "document_id": row[0],
-        "original_text": row[1],
-        "summary": row[2],
-        "execution_plan": json.loads(row[3]) if row[3] else [],
-        "extracted_entities": json.loads(row[4]) if row[4] else [],
-        "relations": json.loads(row[5]) if row[5] else [],
-        "verifier_flags": json.loads(row[6]) if row[6] else [],
-        "audit_trail": json.loads(row[7]) if row[7] else [],
-        "replan_count": row[8] if row[8] is not None else 0,
-        "source_text": row[9] if len(row) > 9 else None,
-        "source_type": row[10] if len(row) > 10 else None,
-        "source_file": row[11] if len(row) > 11 else None,
-        "ocr_result": json.loads(row[12]) if len(row) > 12 and row[12] else None,
-        "document_analysis": json.loads(row[13]) if len(row) > 13 and row[13] else None,
-        "medications": json.loads(row[14]) if len(row) > 14 and row[14] else [],
-        "clinical_context": json.loads(row[15]) if len(row) > 15 and row[15] else [],
-        "final_result": json.loads(row[16]) if len(row) > 16 and row[16] else None,
-        "agent_outputs": json.loads(row[17]) if len(row) > 17 and row[17] else {},
-        "execution_trace": json.loads(row[18]) if len(row) > 18 and row[18] else [],
-        "replans": json.loads(row[19]) if len(row) > 19 and row[19] else [],
+    raw = dict(zip(columns, row))
+    json_fields = {
+        "execution_plan", "extracted_entities", "relations", "verifier_flags", "audit_trail",
+        "ocr_result", "document_analysis", "medications", "clinical_context", "final_result",
+        "agent_outputs", "execution_trace", "replans", "timeline", "fhir_draft",
     }
+    for key in json_fields:
+        if raw.get(key):
+            raw[key] = json.loads(raw[key])
+        elif key == "agent_outputs":
+            raw[key] = {}
+        elif key in {"final_result", "ocr_result", "document_analysis", "fhir_draft"}:
+            raw[key] = None
+        else:
+            raw[key] = []
+    return ReportState(**raw)
 
-    return ReportState(**state_dict)
+def _load_postgres(document_id: str) -> Optional[ReportState]:
+    import psycopg
 
+    with psycopg.connect(DATABASE_URL) as conn:
+        row = conn.execute("SELECT state FROM clinical.reports WHERE document_id = %s", (document_id,)).fetchone()
+        if row:
+            return ReportState.model_validate(row[0])
 
-def save_upload(document_id: str, filename: str, content: bytes, content_type: str | None = None, db_path: str = DB_PATH):
-    """Store an uploaded file into Postgres `files.uploads` (best-effort)."""
-    if not DATABASE_URL:
-        # fallback: store file to a local uploads directory
-        uploads_dir = os.path.join(os.path.dirname(__file__), '..', 'uploads')
-        os.makedirs(uploads_dir, exist_ok=True)
-        safe_name = f"{document_id}_{os.path.basename(filename)}"
-        path = os.path.join(uploads_dir, safe_name)
-        with open(path, 'wb') as f:
-            f.write(content)
-        return path
+        legacy_table = conn.execute("SELECT to_regclass('public.reports')").fetchone()
+        if not legacy_table or legacy_table[0] is None:
+            return None
+        legacy_row = conn.execute(
+            "SELECT to_jsonb(report) FROM public.reports AS report WHERE document_id = %s",
+            (document_id,),
+        ).fetchone()
 
-    import psycopg2
-    conn = _pg_connect(DATABASE_URL)
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            'INSERT INTO files.uploads (document_id, filename, content, content_type) VALUES (%s, %s, %s, %s)',
-            (document_id, filename, psycopg2.Binary(content), content_type)
+    if not legacy_row:
+        return None
+    legacy_state = legacy_row[0]
+    for key in (
+        "execution_plan", "extracted_entities", "relations", "verifier_flags",
+        "audit_trail", "ocr_result", "document_analysis", "medications",
+        "clinical_context", "final_result", "agent_outputs", "execution_trace",
+        "replans", "timeline", "fhir_draft",
+    ):
+        value = legacy_state.get(key)
+        if isinstance(value, str):
+            legacy_state[key] = json.loads(value)
+    return ReportState.model_validate(legacy_state)
+
+def get_report(document_id: str, db_path: Optional[str] = None) -> Optional[ReportState]:
+    """Retrieve the complete report state by document ID."""
+    if db_path or not DATABASE_URL:
+        return _load_sqlite(document_id, db_path or DB_PATH)
+    return _load_postgres(document_id)
+
+def save_upload(
+    document_id: str, filename: str, content: bytes, content_type: Optional[str],
+    db_path: Optional[str] = None,
+) -> None:
+    """Store the latest uploaded file for a document."""
+    if db_path or not DATABASE_URL:
+        with closing(sqlite3.connect(db_path or DB_PATH)) as conn, conn:
+            conn.execute("DELETE FROM uploads WHERE document_id = ?", (document_id,))
+            conn.execute(
+                "INSERT INTO uploads (document_id, filename, content, content_type) VALUES (?, ?, ?, ?)",
+                (document_id, filename, content, content_type),
+            )
+            conn.commit()
+        return
+    import psycopg
+
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute("DELETE FROM files.uploads WHERE document_id = %s", (document_id,))
+        conn.execute(
+            "INSERT INTO files.uploads (document_id, filename, content, content_type) VALUES (%s, %s, %s, %s)",
+            (document_id, filename, content, content_type),
         )
         conn.commit()
-    except Exception:
-        conn.rollback()
-    finally:
-        cur.close()
-        conn.close()
 
 
-def list_reports(limit: int = 20, db_path: str = DB_PATH):
-    """Return a list of recent reports with minimal metadata."""
-    results = []
-    if DATABASE_URL:
-        conn = _pg_connect(DATABASE_URL)
-        cur = conn.cursor()
-        cur.execute('SELECT document_id, summary, replan_count, created_at FROM reports ORDER BY created_at DESC LIMIT %s', (limit,))
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-        for r in rows:
-            results.append({
-                'document_id': r[0],
-                'summary': r[1],
-                'replan_count': r[2],
-                'created_at': r[3].isoformat() if hasattr(r[3], 'isoformat') else r[3]
-            })
-        return results
-
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute('SELECT document_id, summary, replan_count, created_at FROM reports ORDER BY rowid DESC LIMIT ?', (limit,))
-    rows = cursor.fetchall()
-    conn.close()
-    for r in rows:
-        results.append({
-            'document_id': r[0],
-            'summary': r[1],
-            'replan_count': r[2],
-            'created_at': r[3]
-        })
-    return results
+def _page_window(page: int, page_size: int) -> tuple[int, int]:
+    page = max(1, page)
+    page_size = min(100, max(1, page_size))
+    return page_size, (page - 1) * page_size
 
 
-def list_agent_outputs(document_id: str, page: int = 1, page_size: int = 20, agent_name: str | None = None):
-    """Return agent outputs for a document with pagination and optional agent_name filter."""
-    results = []
-    if DATABASE_URL:
-        conn = _pg_connect(DATABASE_URL)
-        cur = conn.cursor()
-        offset = (max(page, 1) - 1) * max(page_size, 1)
-        if agent_name:
-            cur.execute('SELECT id, agent_name, payload, created_at FROM agents.agent_outputs WHERE document_id = %s AND agent_name = %s ORDER BY created_at DESC LIMIT %s OFFSET %s', (document_id, agent_name, page_size, offset))
-        else:
-            cur.execute('SELECT id, agent_name, payload, created_at FROM agents.agent_outputs WHERE document_id = %s ORDER BY created_at DESC LIMIT %s OFFSET %s', (document_id, page_size, offset))
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-        for r in rows:
-            results.append({'id': r[0], 'agent_name': r[1], 'payload': r[2], 'created_at': r[3].isoformat() if hasattr(r[3], 'isoformat') else r[3]})
-        return results
-    return results
+def _isoformat(value: Any) -> Any:
+    return value.isoformat() if hasattr(value, "isoformat") else value
 
 
-def list_audit_events(document_id: str, page: int = 1, page_size: int = 20):
-    """Return audit events for a document with pagination (most recent first)."""
-    results = []
-    if DATABASE_URL:
-        conn = _pg_connect(DATABASE_URL)
-        cur = conn.cursor()
-        offset = (max(page, 1) - 1) * max(page_size, 1)
-        cur.execute('SELECT id, event, created_at FROM agents.audit_events WHERE document_id = %s ORDER BY created_at DESC LIMIT %s OFFSET %s', (document_id, page_size, offset))
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-        for r in rows:
-            results.append({'id': r[0], 'event': r[1], 'created_at': r[2].isoformat() if hasattr(r[2], 'isoformat') else r[2]})
-        return results
-    return results
+def list_reports(limit: int = 20, db_path: Optional[str] = None) -> list[dict[str, Any]]:
+    """Return recent reports with the established summary metadata."""
+    limit = min(100, max(1, limit))
+    if db_path or not DATABASE_URL:
+        with closing(sqlite3.connect(db_path or DB_PATH)) as conn, conn:
+            rows = conn.execute(
+                "SELECT document_id, summary, replan_count, created_at "
+                "FROM reports ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+    else:
+        import psycopg
+
+        with psycopg.connect(DATABASE_URL) as conn:
+            rows = conn.execute(
+                """
+                SELECT r.document_id, o.summary, o.replan_count, r.created_at
+                FROM clinical.reports AS r
+                LEFT JOIN clinical.report_outputs AS o USING (document_id)
+                ORDER BY r.updated_at DESC LIMIT %s
+                """,
+                (limit,),
+            ).fetchall()
+            legacy_exists = conn.execute(
+                "SELECT to_regclass('public.reports')"
+            ).fetchone()
+            if legacy_exists and legacy_exists[0] is not None:
+                legacy_rows = conn.execute(
+                    """
+                    SELECT document_id, summary, replan_count, created_at
+                    FROM public.reports ORDER BY created_at DESC LIMIT %s
+                    """,
+                    (limit,),
+                ).fetchall()
+                known_ids = {row[0] for row in rows}
+                rows.extend(row for row in legacy_rows if row[0] not in known_ids)
+                rows.sort(key=lambda row: _isoformat(row[3]) or "", reverse=True)
+                rows = rows[:limit]
+    return [
+        {
+            "document_id": row[0],
+            "summary": row[1],
+            "replan_count": row[2],
+            "created_at": _isoformat(row[3]),
+        }
+        for row in rows
+    ]
 
 
-def list_uploads(document_id: str):
-    """List uploaded files for a document.
+def list_agent_outputs(
+    document_id: str, page: int = 1, page_size: int = 20, agent_name: Optional[str] = None,
+    db_path: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """Return stored agent outputs for a report with pagination and optional filtering."""
+    page_size, offset = _page_window(page, page_size)
+    if db_path or not DATABASE_URL:
+        with closing(sqlite3.connect(db_path or DB_PATH)) as conn, conn:
+            row = conn.execute(
+                "SELECT agent_outputs, created_at FROM reports WHERE document_id = ?",
+                (document_id,),
+            ).fetchone()
+        if not row:
+            return []
+        outputs = json.loads(row[0]) if row[0] else {}
+        entries = [
+            {"id": index + 1, "agent_name": name, "payload": payload, "created_at": row[1]}
+            for index, (name, payload) in reversed(list(enumerate(outputs.items())))
+            if agent_name is None or name == agent_name
+        ]
+    else:
+        import psycopg
 
-    Returns metadata rows with `id`, `filename`, `content_type`, `created_at`.
-    """
-    results = []
-    if DATABASE_URL:
-        conn = _pg_connect(DATABASE_URL)
-        cur = conn.cursor()
-        cur.execute('SELECT id, filename, content_type, created_at FROM files.uploads WHERE document_id = %s ORDER BY created_at DESC', (document_id,))
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-        for r in rows:
-            results.append({'id': r[0], 'filename': r[1], 'content_type': r[2], 'created_at': r[3].isoformat() if hasattr(r[3], 'isoformat') else r[3]})
-        return results
+        with psycopg.connect(DATABASE_URL) as conn:
+            if agent_name:
+                rows = conn.execute(
+                    """
+                    SELECT id, agent_name, payload, created_at FROM agents.agent_outputs
+                    WHERE document_id = %s AND agent_name = %s
+                    ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s
+                    """,
+                    (document_id, agent_name, page_size, offset),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT id, agent_name, payload, created_at FROM agents.agent_outputs
+                    WHERE document_id = %s ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s
+                    """,
+                    (document_id, page_size, offset),
+                ).fetchall()
+        entries = [
+            {"id": row[0], "agent_name": row[1], "payload": row[2], "created_at": _isoformat(row[3])}
+            for row in rows
+        ]
+    return entries[offset:offset + page_size] if db_path or not DATABASE_URL else entries
 
-    # fallback: list files saved to uploads/ directory
-    uploads_dir = os.path.join(os.path.dirname(__file__), '..', 'uploads')
-    if not os.path.isdir(uploads_dir):
-        return results
-    for fname in os.listdir(uploads_dir):
-        if fname.startswith(f"{document_id}_"):
-            path = os.path.join(uploads_dir, fname)
-            stat = os.stat(path)
-            results.append({'id': None, 'filename': fname.split('_', 1)[1], 'content_type': None, 'created_at': None})
-    return results
+
+def list_audit_events(
+    document_id: str, page: int = 1, page_size: int = 20, db_path: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """Return a report's audit events in reverse chronological order."""
+    page_size, offset = _page_window(page, page_size)
+    if db_path or not DATABASE_URL:
+        with closing(sqlite3.connect(db_path or DB_PATH)) as conn, conn:
+            row = conn.execute(
+                "SELECT audit_trail FROM reports WHERE document_id = ?", (document_id,)
+            ).fetchone()
+        if not row:
+            return []
+        events = json.loads(row[0]) if row[0] else []
+        entries = [
+            {
+                "id": index + 1,
+                "event": event,
+                "created_at": event.get("timestamp"),
+            }
+            for index, event in reversed(list(enumerate(events)))
+        ]
+    else:
+        import psycopg
+
+        with psycopg.connect(DATABASE_URL) as conn:
+            rows = conn.execute(
+                """
+                SELECT id, event, created_at FROM agents.audit_events
+                WHERE document_id = %s ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s
+                """,
+                (document_id, page_size, offset),
+            ).fetchall()
+        entries = [
+            {"id": row[0], "event": row[1], "created_at": _isoformat(row[2])}
+            for row in rows
+        ]
+    return entries[offset:offset + page_size] if db_path or not DATABASE_URL else entries
 
 
-def get_upload_content(upload_id: int):
-    """Return raw bytes and content_type for a given upload id (Postgres only)."""
-    if not DATABASE_URL:
-        return None
-    import psycopg2
-    conn = _pg_connect(DATABASE_URL)
-    cur = conn.cursor()
-    cur.execute('SELECT filename, content, content_type FROM files.uploads WHERE id = %s', (upload_id,))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+def list_uploads(document_id: str, db_path: Optional[str] = None) -> list[dict[str, Any]]:
+    """Return uploaded-file metadata without exposing stored contents."""
+    if db_path or not DATABASE_URL:
+        with closing(sqlite3.connect(db_path or DB_PATH)) as conn, conn:
+            rows = conn.execute(
+                "SELECT id, filename, content_type, created_at FROM uploads "
+                "WHERE document_id = ? ORDER BY created_at DESC",
+                (document_id,),
+            ).fetchall()
+    else:
+        import psycopg
+
+        with psycopg.connect(DATABASE_URL) as conn:
+            rows = conn.execute(
+                """
+                SELECT id, filename, content_type, created_at FROM files.uploads
+                WHERE document_id = %s ORDER BY created_at DESC
+                """,
+                (document_id,),
+            ).fetchall()
+    return [
+        {
+            "id": row[0],
+            "filename": row[1],
+            "content_type": row[2],
+            "created_at": _isoformat(row[3]),
+        }
+        for row in rows
+    ]
+
+
+def get_upload_content(upload_id: int, db_path: Optional[str] = None) -> Optional[dict[str, Any]]:
+    """Retrieve stored bytes for an uploaded file."""
+    if db_path or not DATABASE_URL:
+        with closing(sqlite3.connect(db_path or DB_PATH)) as conn, conn:
+            row = conn.execute(
+                "SELECT filename, content, content_type FROM uploads WHERE id = ?",
+                (upload_id,),
+            ).fetchone()
+    else:
+        import psycopg
+
+        with psycopg.connect(DATABASE_URL) as conn:
+            row = conn.execute(
+                "SELECT filename, content, content_type FROM files.uploads WHERE id = %s",
+                (upload_id,),
+            ).fetchone()
     if not row:
         return None
-    filename, content, content_type = row
-    return {'filename': filename, 'content': bytes(content), 'content_type': content_type}
-
-
-init_db()
+    return {"filename": row[0], "content": bytes(row[1]), "content_type": row[2]}

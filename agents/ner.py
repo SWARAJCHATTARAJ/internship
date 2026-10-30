@@ -1,7 +1,7 @@
 import os
 import re
 from typing import List
-from schemas.core import ReportState, ExtractedEntity, AuditEvent
+from schemas.core import ReportState, ExtractedEntity, AuditEvent, EntityLabel, SourceEvidence
 
 try:
     # pyrefly: ignore [missing-import]
@@ -66,7 +66,7 @@ def find_regex_entities(text: str) -> List[ExtractedEntity]:
     medication_names = [
         "metformin", "lisinopril", "amlodipine", "aspirin", "azithromycin",
         "clopidogrel", "ibuprofen", "furosemide", "amoxicillin", "apixaban",
-        "loratadine"
+        "loratadine", "paracetamol", "acetaminophen", "cetirizine", "vitamin c", "ors"
     ]
     med_pattern = re.compile(
         rf"\b(?P<name>{'|'.join(map(re.escape, medication_names))})\b"
@@ -98,6 +98,14 @@ def find_regex_entities(text: str) -> List[ExtractedEntity]:
             extraction_source="REGEX"
         ))
 
+    symptom_pattern = re.compile(r"\b(?:fever|cough|headache|body ache|nausea|vomiting|pain|fatigue|dizziness)\b", re.I)
+    for m in symptom_pattern.finditer(text):
+        entities.append(ExtractedEntity(text=m.group(0), label="SYMPTOM", start_char=m.start(), end_char=m.end(), extraction_source="REGEX"))
+
+    diagnosis_pattern = re.compile(r"\b(?:diabetes(?: mellitus)?|hypertension|pneumonia|asthma|viral upper respiratory tract infection|common cold)\b", re.I)
+    for m in diagnosis_pattern.finditer(text):
+        entities.append(ExtractedEntity(text=m.group(0), label="DIAGNOSIS", start_char=m.start(), end_char=m.end(), extraction_source="REGEX"))
+
     return entities
 
 
@@ -113,6 +121,14 @@ def normalize_entities(text: str, entities: List[ExtractedEntity]) -> List[Extra
 
         if normalized:
             prev = normalized[-1]
+            if prev.label == entity.label and prev.extraction_source == "huggingface_ner" and entity.extraction_source == "REGEX":
+                normalized[-1] = entity
+                seen_spans.add(span)
+                continue
+            if prev.label == entity.label and prev.extraction_source == "REGEX" and entity.extraction_source == "huggingface_ner":
+                if entity.start_char <= prev.end_char:
+                    seen_spans.add(span)
+                    continue
             if prev.label == "MEDICATION" and entity.label == "MEDICATION":
                 if entity.start_char <= prev.end_char + 8:
                     merged_text = text[prev.start_char:entity.end_char].strip()
@@ -136,7 +152,7 @@ def normalize_entities(text: str, entities: List[ExtractedEntity]) -> List[Extra
     return normalized
 
 
-def normalize_label(label: str) -> str:
+def normalize_label(label: str) -> EntityLabel:
     label_upper = (label or "").upper()
     if label_upper in {"MEDICATION", "DRUG", "MEDICINE"}:
         return "MEDICATION"
@@ -151,6 +167,52 @@ def normalize_label(label: str) -> str:
     if label_upper in {"ANATOMY", "BODY_PART"}:
         return "ANATOMY"
     return "SYMPTOM"
+
+
+def _normalize_huggingface_label(label: str) -> EntityLabel | None:
+    value = (label or "").lower().replace("_", " ")
+    if any(term in value for term in ("medication", "drug", "chemical", "pharmaceutical")):
+        return "MEDICATION"
+    if any(term in value for term in ("disease", "disorder", "condition", "diagnos")):
+        return "DIAGNOSIS"
+    if any(term in value for term in ("symptom", "sign")):
+        return "SYMPTOM"
+    if any(term in value for term in ("anatomy", "body", "organ")):
+        return "ANATOMY"
+    if any(term in value for term in ("procedure", "treatment", "surgery")):
+        return "PROCEDURE"
+    if any(term in value for term in ("lab", "test", "diagnostic")):
+        return "LAB_RESULT"
+    return None
+
+
+def find_huggingface_entities(text: str) -> List[ExtractedEntity]:
+    from tools.hf_models import get_ner_pipeline
+
+    entities = []
+    for item in get_ner_pipeline()(text):
+        label = _normalize_huggingface_label(item.get("entity_group", item.get("entity")))
+        start = item.get("start")
+        end = item.get("end")
+        if label and start is not None and end is not None and end > start:
+            if label == "MEDICATION":
+                medication_match = re.search(
+                    r"\b(?:metformin|lisinopril|amlodipine|aspirin|azithromycin|clopidogrel|ibuprofen|furosemide|amoxicillin|apixaban|loratadine|paracetamol|acetaminophen|cetirizine)\b",
+                    text[start:end],
+                    re.I,
+                )
+                if medication_match:
+                    start += medication_match.start()
+                    end = start + len(medication_match.group(0))
+            entities.append(ExtractedEntity(
+                text=text[start:end],
+                label=label,
+                start_char=start,
+                end_char=end,
+                confidence=float(item.get("score", 0.0)),
+                extraction_source="huggingface_ner",
+            ))
+    return entities
 
 
 def ner_agent(state: ReportState) -> dict:
@@ -171,57 +233,145 @@ def ner_agent(state: ReportState) -> dict:
                 end_char=ent.end_char,
                 extraction_source="custom_spacy_model"
             ))
-            
-    # 2. LLM Fallback Logic
-    text_lower = state.original_text.lower()
-    keywords = ["diagnosed", "treated", "prescribed", "medication", "pain"]
-    has_keywords = any(kw in text_lower for kw in keywords)
-    
-    used_fallback = False
-    
-    if len(spacy_entities) == 0 and has_keywords:
-        used_fallback = True
-        llm_entities = mock_llm_fallback(state.original_text)
-        extracted.extend(llm_entities)
+
+    hf_entities = []
+    try:
+        hf_entities = find_huggingface_entities(state.original_text)
+    except Exception as exc:
         audit_trail.append(AuditEvent(
             agent_name="ner_agent",
-            action_type="LLM_FALLBACK_EXTRACTION",
-            details={"message": f"ScispaCy missed entities. LLM extracted {len(llm_entities)} entities."}
+            action_type="HUGGINGFACE_NER_UNAVAILABLE",
+            details={"model": "d4data/biomedical-ner-all", "error": str(exc)},
         ))
-    else:
-        extracted.extend(spacy_entities)
+
+    if hf_entities:
+        extracted.extend(hf_entities)
         audit_trail.append(AuditEvent(
             agent_name="ner_agent",
-            action_type="SCISPACY_EXTRACTION",
-            details={"message": f"ScispaCy extracted {len(spacy_entities)} entities."}
+            action_type="HUGGINGFACE_NER_EXTRACTION",
+            details={"extracted_count": len(hf_entities), "model": "d4data/biomedical-ner-all"},
         ))
+
+    # 2. Gemini LLM Clinical Extraction (Zero-shot across all scenarios)
+    llm_used = False
+    if not hf_entities:
+        try:
+            from tools.llm_client import call_gemini_json
+            prompt = (
+                "You are a clinical NER specialist. Extract all clinical entities from the clinical text below.\n"
+                "Classify each entity with one of these labels:\n"
+                "- MEDICATION (drug names, e.g. Metformin, Lisinopril, Aspirin, Azithromycin, Ibuprofen)\n"
+                "- DIAGNOSIS (conditions, diseases, e.g. Type 2 Diabetes Mellitus, Hypertension, Pneumonia, Osteoarthritis)\n"
+                "- SYMPTOM (clinical signs, e.g. fever, cough, pain, fatigue)\n"
+                "- LAB_RESULT (tests and lab values, e.g. Glucose 145 mg/dL, Creatinine 1.8 mg/dL)\n\n"
+                f"Clinical Text:\n\"\"\"{state.original_text}\"\"\"\n\n"
+                "Return JSON with key 'entities': list of {text: string, label: string}."
+            )
+            llm_data = call_gemini_json(prompt)
+            if llm_data and "entities" in llm_data and isinstance(llm_data["entities"], list):
+                llm_entities = []
+                for item in llm_data["entities"]:
+                    ent_text = item.get("text", "").strip()
+                    ent_label = normalize_label(item.get("label", ""))
+                    if ent_text:
+                        pos = state.original_text.lower().find(ent_text.lower())
+                        start = pos if pos != -1 else 0
+                        end = start + len(ent_text)
+                        llm_entities.append(ExtractedEntity(
+                            text=ent_text,
+                            label=ent_label,
+                            start_char=start,
+                            end_char=end,
+                            confidence=0.98,
+                            extraction_source="LLM_fallback",
+                        ))
+                if llm_entities:
+                    extracted.extend(llm_entities)
+                    llm_used = True
+                    audit_trail.append(AuditEvent(
+                        agent_name="ner_agent",
+                        action_type="GEMINI_LLM_EXTRACTION",
+                        details={"extracted_count": len(llm_entities), "model": "gemini-3.1-flash-lite"}
+                    ))
+        except Exception as exc:
+            audit_trail.append(AuditEvent(
+                agent_name="ner_agent",
+                action_type="GEMINI_NER_UNAVAILABLE",
+                details={"error": str(exc)},
+            ))
+
+    if not llm_used and not hf_entities:
+        text_lower = state.original_text.lower()
+        keywords = ["diagnosed", "treated", "prescribed", "medication", "pain"]
+        has_keywords = any(kw in text_lower for kw in keywords)
+
+        if len(spacy_entities) == 0 and has_keywords:
+            llm_entities = mock_llm_fallback(state.original_text)
+            extracted.extend(llm_entities)
+            audit_trail.append(AuditEvent(
+                agent_name="ner_agent",
+                action_type="LLM_FALLBACK_EXTRACTION",
+                details={"message": f"ScispaCy missed entities. Fallback extracted {len(llm_entities)} entities."}
+            ))
+        else:
+            extracted.extend(spacy_entities)
+            audit_trail.append(AuditEvent(
+                agent_name="ner_agent",
+                action_type="SCISPACY_EXTRACTION",
+                details={"message": f"ScispaCy extracted {len(spacy_entities)} entities."}
+            ))
 
     regex_entities = find_regex_entities(state.original_text)
     if regex_entities:
         extracted.extend(regex_entities)
-        audit_trail.append(AuditEvent(
-            agent_name="ner_agent",
-            action_type="REGEX_POSTPROCESSING",
-            details={"message": f"Added {len(regex_entities)} normalized entities from regex patterns."}
-        ))
 
     extracted = normalize_entities(state.original_text, extracted)
 
-    # 3. Dynamic Routing: check if multiple drugs are present
+    # Attach observable source evidence with multi-word bounding box aggregation
+    source_kind = "ocr" if state.ocr_result else ("native_text" if state.source_type == "pdf" else "user_text")
+    for entity in extracted:
+        evidence = SourceEvidence(source_kind=source_kind, text_span=[entity.start_char, entity.end_char])
+        if state.ocr_result:
+            evidence.ocr_confidence = state.ocr_result.overall_confidence
+            for page in state.ocr_result.pages:
+                entity_words = set(re.findall(r"\w+", entity.text.lower()))
+                matching_boxes = []
+                conf_list = []
+                for region in page.regions:
+                    reg_word = region.text.lower()
+                    if reg_word in entity_words:
+                        if region.bbox:
+                            matching_boxes.append(region.bbox)
+                        if region.confidence is not None:
+                            conf_list.append(region.confidence)
+                if matching_boxes:
+                    evidence.page_number = page.page_number
+                    min_x = min(b[0] for b in matching_boxes)
+                    min_y = min(b[1] for b in matching_boxes)
+                    max_x = max(b[2] for b in matching_boxes)
+                    max_y = max(b[3] for b in matching_boxes)
+                    evidence.bbox = [min_x, min_y, max_x, max_y]
+                    evidence.ocr_confidence = (sum(conf_list) / len(conf_list)) if conf_list else page.confidence
+                    break
+        entity.provenance = evidence
+
+    # 3. Dynamic Routing: ask the orchestrator's medication specialist when needed.
     drug_count = sum(1 for e in extracted if e.label == "MEDICATION")
-    
-    drug_names = ["metformin", "amlodipine", "aspirin", "azithromycin", "clopidogrel", "ibuprofen"]
+    drug_names = ["metformin", "amlodipine", "aspirin", "azithromycin", "clopidogrel", "ibuprofen", "lisinopril"]
     drug_count += sum(1 for e in extracted if e.text.lower() in drug_names and e.label != "MEDICATION")
 
-    if drug_count >= 1 and "drug_agent" not in execution_plan:
-        execution_plan.insert(execution_plan.index("ner_agent") + 1, "drug_agent")
+    if drug_count >= 1 and "drug_agent" not in execution_plan and "medication_agent" not in execution_plan:
+        if "ner_agent" in execution_plan:
+            execution_plan.insert(execution_plan.index("ner_agent") + 1, "drug_agent")
+        else:
+            execution_plan.append("drug_agent")
         audit_trail.append(AuditEvent(
             agent_name="ner_agent",
             action_type="PLAN_UPDATE",
             details={"message": "Detected drug entities. Added drug_agent to execution plan."}
         ))
     
-    trained_model_used = bool(spacy_entities) and not used_fallback
+    trained_model_used = bool(spacy_entities) and not llm_used
     return {
         "extracted_entities": extracted,
         "audit_trail": audit_trail,
