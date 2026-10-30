@@ -1,5 +1,5 @@
 from schemas.core import ReportState, GroundedConcept, AuditEvent
-from tools.ontology_index import retrieve_best_match
+from tools.ontology_index import retrieve_best_matches
 
 
 def mock_ontology_mapping(text: str, label: str) -> GroundedConcept:
@@ -37,10 +37,11 @@ def grounding_agent(state: ReportState) -> dict:
     ungrounded_count = 0
     mode_used = "rag"
 
-    for entity in extracted_entities:
+    pending = [entity for entity in extracted_entities if entity.grounding is None]
+    matches = retrieve_best_matches([entity.text for entity in pending])
+    for entity, (concept, mode, similarity) in zip(pending, matches):
         if entity.grounding is None:
-            concept, mode, similarity = retrieve_best_match(entity.text, entity.label)
-            mode_used = mode if mode == "fallback" else mode_used
+            mode_used = mode
             if concept is not None and similarity >= 0.35:
                 entity.grounding = concept
                 mapped_count += 1

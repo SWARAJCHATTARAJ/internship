@@ -4,6 +4,10 @@ An agentic clinical document intelligence platform designed to ingest, transcrib
 
 Built with an adaptive multi-agent LangGraph architecture, multimodal vision OCR, medical ontology grounding, and clinical safety verification.
 
+The supported deployment path is Docker Compose: a FastAPI backend and a React/Vite
+frontend served by Nginx. The backend uses Neon/PostgreSQL when `DATABASE_URL` is set
+and a persistent SQLite fallback for local development.
+
 ---
 
 ## Key Features
@@ -25,9 +29,29 @@ Built with an adaptive multi-agent LangGraph architecture, multimodal vision OCR
   * **Verification / Safety Agent**: Flags potential drug interactions, dosage contradictions, and safety hazards with optional replanning.
   * **Summary Agent**: Generates structured clinical summaries and decision support overviews.
 * **Interactive Web Dashboard**:
-  * Fully integrated single-page application served directly by FastAPI at `http://localhost:8000/`.
+  * The primary React single-page application in `frontend/` is served at `http://localhost:5173/` locally or through the frontend container.
+  * The legacy dashboard remains available from the FastAPI service at `http://localhost:8000/`.
   * Live multi-agent execution trace inspection, entity cards, relationship maps, and audit trail.
-  * Optional standalone Vite + React client in `frontend/`.
+
+## Models And External Services
+
+Models are loaded lazily on first use and cached in the Docker `hf_cache` volume. The
+pipeline continues with deterministic fallbacks when optional model or API access is
+unavailable.
+
+| Capability | Model or service | Fallback |
+| --- | --- | --- |
+| Custom clinical NER | `models/custom_medical_ner` | SciSpaCy, regex, and deterministic extraction |
+| SciSpaCy NER | `en_core_sci_sm` | Regex and deterministic extraction |
+| Hugging Face NER | `d4data/biomedical-ner-all` | Audit event plus local fallback |
+| Hugging Face relation extraction | `wesin/pubmedbert-relation-extraction` | Gemini or deterministic relations |
+| Hugging Face embeddings | `NeuML/biomedbert-base-embeddings` | Local ontology index fallback |
+| LLM and vision OCR | Gemini `gemini-3.1-flash-lite`, `gemini-2.5-flash`, `gemini-2.0-flash` | Local extraction and Tesseract |
+| OCR | Windows `winocr` or Tesseract | Tesseract is installed in the backend image |
+
+Hugging Face models are downloaded on demand rather than during image build. The first
+request that uses a model may take longer and requires outbound network access. Set
+`HF_TOKEN` for higher Hugging Face Hub limits when required.
 
 ---
 
@@ -57,10 +81,10 @@ Built with an adaptive multi-agent LangGraph architecture, multimodal vision OCR
                └────────────────► [Summary Agent] ◄──────────────┘
                                         │
                                         ▼
-                         [SQLite Audit & Report Store]
+                     [Postgres / SQLite Report Store]
                                         │
                                         ▼
-                  [Interactive Clinical Dashboard (Port 8000)]
+                  [React Clinical Dashboard (Port 5173)]
 ```
 
 ---
@@ -82,10 +106,10 @@ Built with an adaptive multi-agent LangGraph architecture, multimodal vision OCR
 │   ├── timeline.py             # Temporal event timeline construction
 │   └── verifier.py             # Contraindication and dosage verifier
 ├── api/                        # FastAPI service layer
-│   ├── dashboard.py            # Integrated single-page clinical dashboard UI
+│   ├── dashboard.py            # Legacy API-served dashboard
 │   └── main.py                 # API router, middleware, and upload endpoints
 ├── data/                       # Local database & ontology indices
-│   ├── db.py                   # SQLite storage for reports and audit events
+│   ├── db.py                   # Postgres/SQLite report, input, output, and audit storage
 │   ├── ontology_seed.json      # Curated medical ontology seed dictionary
 │   └── reports.db              # SQLite database file
 ├── dataset/                    # Clinical benchmarks and evaluation datasets
@@ -123,10 +147,32 @@ Built with an adaptive multi-agent LangGraph architecture, multimodal vision OCR
 ## Quick Start
 
 ### 1. Prerequisites
-* Python 3.10+ (tested on Python 3.11 - 3.14)
-* *(Optional)* Docker and Docker Desktop
+* Docker Desktop with Compose v2 for the supported deployment path
+* Python 3.11+ and Node.js 20+ for local development
+* Outbound network access on the first Hugging Face model request
 
-### 2. Installation
+### 2. Configuration
+
+Copy the safe configuration template:
+
+```bash
+copy .env.example .env              # Windows PowerShell
+# cp .env.example .env              # Linux/macOS
+```
+
+Set `DATABASE_URL` in `.env` to the Neon/PostgreSQL connection string when remote
+persistence is required. Do not commit `.env` or credentials. Leave it empty to use
+the persistent local SQLite fallback.
+
+Important variables:
+
+* `DATABASE_URL`: creates and uses the `clinical`, `agents`, and `files` schemas.
+* `GEMINI_API_KEY`: optional Gemini extraction and multimodal OCR.
+* `HF_TOKEN`: optional Hugging Face Hub authentication.
+* `MODEL_DEVICE`: defaults to `cpu`; use `cuda` only with a compatible GPU runtime.
+* `VITE_BACKEND_URL`: defaults to `/api`; Nginx proxies it to the backend container.
+
+### 3. Local Installation
 
 Clone the repository and set up a virtual environment:
 
@@ -144,51 +190,86 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 3. Environment Configuration
+## Running The Application
 
-Create a `.env` file in the root directory:
+### Option A: Local Run Without Docker (Recommended For Development)
 
-```env
-# Optional: Gemini API key enables multimodal vision OCR for handwritten prescriptions
-GEMINI_API_KEY=your_gemini_api_key_here
+Use three terminals from the repository root.
 
-# Allowed origins for CORS (default: http://localhost:5173)
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+Terminal 1, install the Python dependencies and start the API:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
-> **Note:** If no `GEMINI_API_KEY` is provided, the platform gracefully uses local Windows OCR (`winocr`) and Tesseract OCR.
+Terminal 2, install frontend dependencies and start Vite:
 
----
-
-## Running the Application
-
-### Option A: Local Python Server (Fastest)
-
-Start the Uvicorn ASGI server:
-
-```bash
-python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+```powershell
+cd frontend
+npm ci
+npm run dev
 ```
 
-Once running:
-* **Clinical Dashboard**: Open [http://localhost:8000/](http://localhost:8000/) in any web browser.
-* **Interactive Swagger Docs**: Access [http://localhost:8000/docs](http://localhost:8000/docs).
-* **Health Probe**: [http://localhost:8000/health](http://localhost:8000/health).
+Open [http://localhost:5173](http://localhost:5173). Vite proxies `/api` to the
+local backend at `http://localhost:8000`. Verify the API before using the dashboard:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/health
+```
+
+Expected response:
+
+```json
+{"status":"ok"}
+```
+
+The backend loads `.env` automatically, so `DATABASE_URL` is used for persistence.
+Without it, the complete report state is stored in the local SQLite fallback.
 
 ### Option B: Docker Compose
 
-To start the containerized stack:
+Build and start both services:
 
 ```bash
 docker compose up --build
 ```
 
-* **Frontend UI**: [http://localhost:5173](http://localhost:5173)
-* **Backend API**: [http://localhost:8000](http://localhost:8000)
+Open the dashboard at [http://localhost:5173](http://localhost:5173), API docs at
+[http://localhost:8000/docs](http://localhost:8000/docs), and the health probe at
+[http://localhost:8000/health](http://localhost:8000/health).
+
+The frontend waits for the backend health check. The first request may download Hugging
+Face models; subsequent runs reuse the named `hf_cache` volume.
+
+Stop the stack with:
+
+```bash
+docker compose down
+```
+
+### Persistence Layout
+
+With PostgreSQL, the backend stores:
+
+* `clinical.reports`: complete serialized `ReportState` snapshots.
+* `clinical.report_inputs`: original text, source text, file metadata, OCR, and document analysis.
+* `clinical.report_outputs`: summaries, final results, plans, traces, and replans.
+* `agents.agent_outputs`: one JSON payload per agent output.
+* `agents.audit_events`: timestamped agent actions and audit details.
+* `files.uploads`: uploaded source bytes and metadata.
+
+Writes are upserted by `document_id`, making retries safe. SQLite uses the same complete
+state shape for local fallback and tests.
 
 ---
 
 ## API Documentation
+
+### Legacy Dashboard
+* **Endpoint**: `GET /`
+* **Response**: The original dashboard served by FastAPI; the React application remains the primary UI.
 
 ### Ingest Plain Clinical Text
 * **Endpoint**: `POST /process`
@@ -214,6 +295,23 @@ docker compose up --build
 * **Endpoint**: `GET /reports/{document_id}`
 * **Response**: Persisted report state, execution trace, and audit log.
 
+### List Reports
+* **Endpoint**: `GET /reports?limit=20`
+* **Response**: Recent report IDs with summary, replan count, and creation time.
+
+### Inspect Agent Outputs and Audit Events
+* **Endpoints**: `GET /agents/outputs?document_id=DOC-1001` and `GET /agents/audit?document_id=DOC-1001`
+* **Parameters**: Both endpoints support `page` and `page_size`; agent outputs also support `agent_name`.
+
+### List or Download Uploaded Files
+* **Endpoints**: `GET /files?document_id=DOC-1001` and `GET /files/{upload_id}`
+* **Response**: File metadata or the stored source document.
+
+### Re-run a Report
+* **Endpoint**: `POST /process/rerun`
+* **Request**: `{"document_id": "DOC-1001"}`
+* **Response**: HTTP 202 after the stored report has been reprocessed.
+
 ### Health Check
 * **Endpoint**: `GET /health`
 * **Response**: `{"status": "ok"}`
@@ -234,6 +332,19 @@ To run a specific module:
 python -m pytest tests/test_ocr.py -v
 python -m pytest tests/test_api.py -v
 ```
+
+Validate the container images before pushing:
+
+```bash
+docker compose build
+docker compose up -d
+curl http://localhost:8000/health
+docker compose down
+```
+
+If an old local checkout reports a missing SQLite column after upgrading, run the backend
+once with the updated migration or remove only the ignored `data/reports.db` file. A
+configured PostgreSQL database is migrated idempotently on backend startup.
 
 ---
 

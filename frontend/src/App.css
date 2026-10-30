@@ -34,6 +34,10 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .inspect { font-size: 11px; align-self: center; color: #80ded4; text-decoration: underline; }
 
 .audit { max-height: 720px; overflow: auto; }
+.audit-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.audit-heading h2 { margin-bottom: 12px; }
+.review-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.review-actions span { color: #95a4b2; font-size: 12px; }
 .audit article { padding: 10px 0; border-bottom: 1px solid #26333b; display: grid; grid-template-columns: 72px 1fr; gap: 3px 8px; font-size: 12px; }
 .audit article time, .audit article span { color: #8da0ad; }
 .audit article p { grid-column: 1 / -1; margin: 2px 0; color: #b5c3cc; }

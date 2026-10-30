@@ -103,4 +103,3 @@ def transcribe_clinical_image(image_bytes: bytes, mime_type: str = "image/jpeg",
         return None
     except Exception as exc:
         return None
-

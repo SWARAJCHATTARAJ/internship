@@ -1,19 +1,40 @@
 import sys
 import os
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from schemas.core import AuditEvent, ReportState
+from api.dashboard import DASHBOARD_HTML
 from agents.ocr import OCRAgent
 from agents.document import DocumentAgent
 from agents.orchestrator import graph
-from data.db import save_report, get_report
+from data.db import (
+    get_report,
+    get_upload_content,
+    init_db,
+    list_agent_outputs,
+    list_audit_events,
+    list_reports,
+    list_uploads,
+    save_report,
+    save_upload,
+)
 from tools.preprocessing import mask_phi, normalize_clinical_text
 
-app = FastAPI(title="Clinical Report Understanding API")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
+    init_db()
+    yield
+
+
+app = FastAPI(title="Clinical Report Understanding API", lifespan=lifespan)
 
 cors_origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if origin.strip()]
 
@@ -26,13 +47,9 @@ app.add_middleware(
 )
 
 
-from fastapi.responses import HTMLResponse
-from api.dashboard import DASHBOARD_HTML
-
-
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard():
-    """Serves the interactive multi-agent clinical dashboard."""
+    """Keep the original API-served dashboard available for compatibility."""
     return HTMLResponse(content=DASHBOARD_HTML)
 
 
@@ -40,7 +57,6 @@ async def serve_dashboard():
 async def health_check():
     """Container health probe; does not access document data."""
     return {"status": "ok"}
-
 
 class ProcessRequest(BaseModel):
     document_id: str
@@ -100,6 +116,7 @@ async def process_report(request: ProcessRequest):
 async def process_upload(document_id: str = Form(...), file: UploadFile = File(...)):
     """Characterize an upload, then use native PDF text or OCR as appropriate."""
     payload = await file.read()
+    save_upload(document_id, file.filename or "upload", payload, file.content_type)
     document_agent = DocumentAgent()
     analysis, native_text = document_agent.analyze_file(payload, file.filename)
     result = None
@@ -137,3 +154,71 @@ async def get_report_endpoint(document_id: str):
         raise HTTPException(status_code=404, detail="Report not found")
     return report
 
+
+@app.get("/reports", response_model=list)
+async def list_reports_endpoint(limit: int = Query(default=20, ge=1, le=100)):
+    """List recent reports with their summary and replan metadata."""
+    return list_reports(limit=limit)
+
+
+@app.get("/agents/outputs")
+async def api_list_agent_outputs(
+    document_id: str,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    agent_name: str | None = None,
+):
+    """List a report's stored agent outputs."""
+    return JSONResponse(
+        list_agent_outputs(
+            document_id, page=page, page_size=page_size, agent_name=agent_name
+        )
+    )
+
+
+@app.get("/agents/audit")
+async def api_list_audit_events(
+    document_id: str,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+):
+    """List a report's audit events."""
+    return JSONResponse(
+        list_audit_events(document_id, page=page, page_size=page_size)
+    )
+
+
+@app.get("/files")
+async def api_list_uploads(document_id: str):
+    """List uploaded files for a report."""
+    return JSONResponse(list_uploads(document_id))
+
+
+@app.get("/files/{upload_id}")
+async def api_get_upload(upload_id: int):
+    """Download an uploaded source document."""
+    upload = get_upload_content(upload_id)
+    if upload is None:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    filename = os.path.basename(upload["filename"]).replace('"', "_")
+    filename = filename.replace("\r", "").replace("\n", "")
+    return StreamingResponse(
+        iter([upload["content"]]),
+        media_type=upload.get("content_type") or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+class RerunRequest(BaseModel):
+    document_id: str
+
+
+@app.post("/process/rerun", status_code=202)
+async def api_rerun_report(request: RerunRequest):
+    """Re-run the agent graph using a previously stored report."""
+    existing = get_report(request.document_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    result = graph.invoke(existing)
+    save_report(ReportState(**result))
+    return {"status": "accepted", "document_id": request.document_id}

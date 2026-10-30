@@ -50,7 +50,7 @@ class ExtractedEntity(BaseModel):
     start_char: int
     end_char: int
     confidence: float = 1.0
-    extraction_source: Literal["scispaCy", "LLM_fallback", "custom_spacy_model", "REGEX"] = "scispaCy"
+    extraction_source: Literal["scispaCy", "LLM_fallback", "custom_spacy_model", "huggingface_ner", "REGEX"] = "scispaCy"
     grounding: Optional[GroundedConcept] = None
     provenance: Optional[SourceEvidence] = None
 

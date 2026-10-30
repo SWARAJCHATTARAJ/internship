@@ -7,7 +7,34 @@ const AGENTS = [
   ["timeline", "Timeline agent"], ["grounding", "Grounding agent"], ["summary", "Summary agent"], ["verifier", "Verifier / critic"],
 ];
 
-const apiBase = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+const SAMPLE_CASES = [
+  {
+    id: "routine-follow-up",
+    label: "Routine follow-up",
+    text: "Patient returns for seasonal allergic rhinitis follow-up. Symptoms are controlled. Continue loratadine 10 mg once daily.",
+  },
+  {
+    id: "discharge-summary",
+    label: "Multi-system discharge",
+    text: `Discharge summary: admitted with community-acquired pneumonia and chronic kidney disease.
+History: hypertension and type 2 diabetes.
+Hospital course: treated with ceftriaxone, then transitioned to amoxicillin.
+Medications: amoxicillin 500 mg three times daily, lisinopril 10 mg daily, metformin 500 mg twice daily.
+Labs: creatinine 1.3 mg/dL, sodium 138 mmol/L.
+Diagnoses: pneumonia, chronic kidney disease, diabetes, hypertension.`,
+  },
+  {
+    id: "dosage-conflict",
+    label: "Conflicting medication doses",
+    text: `Discharge summary: patient with type 2 diabetes and heart failure.
+Metformin was held during admission and resumed at discharge.
+Medication list: metformin 500 mg twice daily and metformin 2000 mg once daily.
+Also taking furosemide 40 mg daily.
+Creatinine 1.1 mg/dL.`,
+  },
+];
+
+const apiBase = import.meta.env.VITE_BACKEND_URL || "/api";
 
 function prettify(value) { return String(value || "").replaceAll("_", " "); }
 function confidence(value) { return value == null ? "Not available" : `${Math.round(value * 100)}%`; }
@@ -17,10 +44,13 @@ export default function App() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [documentText, setDocumentText] = useState("");
+  const [selectedSample, setSelectedSample] = useState("");
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [activeTab, setActiveTab] = useState("Summary");
+  const [durationMs, setDurationMs] = useState(null);
+  const [reviewedFlags, setReviewedFlags] = useState({});
 
   const sourceName = inputMode === "upload" ? (uploadedFile?.name || "No document selected") : "Clinical Note Entry";
   const traceByAgent = useMemo(() => Object.fromEntries((result?.execution_trace || []).map((item) => [item.agent, item])), [result]);
@@ -33,15 +63,31 @@ export default function App() {
       setPreviewUrl(null);
     }
     setDocumentText("");
+    setSelectedSample("");
     setResult(null);
     setSelectedAgent(null);
     setInputMode("upload");
   }
 
+  function loadSample(sampleId) {
+    const sample = SAMPLE_CASES.find((item) => item.id === sampleId);
+    if (!sample) {
+      setSelectedSample("");
+      return;
+    }
+    setSelectedSample(sample.id);
+    setDocumentText(sample.text);
+    setResult(null);
+    setSelectedAgent(null);
+  }
+
   async function analyze() {
     if (inputMode === "text" && !documentText.trim()) return;
     if (inputMode === "upload" && !uploadedFile) return;
+    const startedAt = performance.now();
     setBusy(true); setResult(null); setSelectedAgent(null);
+    setDurationMs(null);
+    setReviewedFlags({});
     try {
       let response;
       if (inputMode === "upload") {
@@ -64,8 +110,34 @@ export default function App() {
     } catch (error) {
       window.alert(`Analysis failed: ${error.message}`);
     } finally {
+      setDurationMs(Math.round(performance.now() - startedAt));
       setBusy(false);
     }
+  }
+
+  function resolveFlag(flagId, status) {
+    setReviewedFlags((previous) => ({ ...previous, [flagId]: status }));
+  }
+
+  function downloadAuditTrail() {
+    if (!result) return;
+    const payload = {
+      document_id: result.document_id,
+      sample: selectedSample || null,
+      duration_ms: durationMs,
+      flags: result.verifier_flags || [],
+      review_decisions: reviewedFlags,
+      events: result.audit_trail || [],
+      report: result,
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${String(result.document_id || "report").toLowerCase()}-audit-trail.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -84,6 +156,9 @@ export default function App() {
       <div className="top-grid">
         <SourcePanel
           inputMode={inputMode}
+          selectedSample={selectedSample}
+          loadSample={loadSample}
+          clearSelectedSample={() => setSelectedSample("")}
           uploadedFile={uploadedFile}
           previewUrl={previewUrl}
           chooseFile={chooseFile}
@@ -95,16 +170,33 @@ export default function App() {
           analyze={analyze}
         />
         <TracePanel traceByAgent={traceByAgent} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} />
-        <AuditPanel audit={result?.audit_trail || []} replans={result?.replans || []} />
+        <AuditPanel
+          audit={result?.audit_trail || []}
+          replans={result?.replans || []}
+          onExport={downloadAuditTrail}
+          canExport={Boolean(result)}
+        />
       </div>
 
-      {result && <AnalysisResult result={result} tab={activeTab} setTab={setActiveTab} />}
+      {result && (
+        <AnalysisResult
+          result={result}
+          tab={activeTab}
+          setTab={setActiveTab}
+          durationMs={durationMs}
+          reviewedFlags={reviewedFlags}
+          resolveFlag={resolveFlag}
+        />
+      )}
       {selectedAgent && <Inspector item={traceByAgent[selectedAgent]} close={() => setSelectedAgent(null)} sourceName={sourceName} />}
     </main>
   );
 }
 
-function SourcePanel({ inputMode, uploadedFile, previewUrl, chooseFile, sourceName, text, setText, result, busy, analyze }) {
+function SourcePanel({
+  inputMode, selectedSample, loadSample, clearSelectedSample, uploadedFile, previewUrl,
+  chooseFile, sourceName, text, setText, result, busy, analyze,
+}) {
   const analysis = result?.document_analysis;
   return (
     <section className="panel source">
@@ -112,6 +204,17 @@ function SourcePanel({ inputMode, uploadedFile, previewUrl, chooseFile, sourceNa
       <span className="badge">
         {inputMode === "text" ? "DIRECT TEXT ENTRY" : "DOCUMENT SCAN / OCR"}
       </span>
+
+      {inputMode === "text" && (
+        <label>Sample case
+          <select value={selectedSample} onChange={(event) => loadSample(event.target.value)}>
+            <option value="">Choose a sample case...</option>
+            {SAMPLE_CASES.map((sample) => (
+              <option key={sample.id} value={sample.id}>{sample.label}</option>
+            ))}
+          </select>
+        </label>
+      )}
 
       {inputMode === "upload" && (
         <>
@@ -142,7 +245,10 @@ function SourcePanel({ inputMode, uploadedFile, previewUrl, chooseFile, sourceNa
       <label>Clinical Document Text:
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(event) => {
+            setText(event.target.value);
+            clearSelectedSample();
+          }}
           placeholder="Type or paste any prescription, clinical note, diagnosis, or patient scenario here freely..."
           rows="12"
         />
@@ -182,10 +288,13 @@ function TracePanel({ traceByAgent, selectedAgent, setSelectedAgent }) {
   );
 }
 
-function AuditPanel({ audit, replans }) {
+function AuditPanel({ audit, replans, onExport, canExport }) {
   return (
     <section className="panel audit">
-      <h2>Audit & Safety Trail</h2>
+      <div className="audit-heading">
+        <h2>Audit & Safety Trail</h2>
+        {canExport && <button onClick={onExport}>Export JSON</button>}
+      </div>
       {replans.length > 0 && (
         <div className="replan">
           <strong>Re-planning Recorded</strong>
@@ -208,7 +317,7 @@ function AuditPanel({ audit, replans }) {
   );
 }
 
-function AnalysisResult({ result, tab, setTab }) {
+function AnalysisResult({ result, tab, setTab, durationMs, reviewedFlags, resolveFlag }) {
   const final = result.final_result || {};
   const tabs = ["Summary", "Overview", "Entities", "Medications", "Relations", "Grounding", "Verification", "Provenance"];
 
@@ -227,7 +336,14 @@ function AnalysisResult({ result, tab, setTab }) {
     Medications: <MedicationTable medications={result.medications || []} />,
     Relations: <RelationsList relations={result.relations || []} entities={result.extracted_entities || []} />,
     Grounding: <GroundingList concepts={final.grounded_concepts || []} entities={result.extracted_entities || []} />,
-    Verification: <VerificationView flags={result.verifier_flags || []} status={final.verification?.status} />,
+    Verification: (
+      <VerificationView
+        flags={result.verifier_flags || []}
+        status={final.verification?.status}
+        reviewedFlags={reviewedFlags}
+        resolveFlag={resolveFlag}
+      />
+    ),
     Provenance: <ProvenanceList entities={result.extracted_entities || []} ocrResult={result.ocr_result} />,
   };
 
@@ -235,6 +351,10 @@ function AnalysisResult({ result, tab, setTab }) {
     <section className="result">
       <h2>Clinical Decision Support Output</h2>
       <p className="disclaimer">{final.disclaimer || "Document understanding research demo only; not clinical advice."}</p>
+      <p className="hint">
+        Document {result.document_id}
+        {durationMs != null ? ` · processed in ${(durationMs / 1000).toFixed(1)}s` : ""}
+      </p>
       <nav>
         {tabs.map((name) => (
           <button key={name} className={tab === name ? "active" : ""} onClick={() => setTab(name)}>
@@ -346,7 +466,7 @@ function GroundingList({ concepts, entities }) {
   );
 }
 
-function VerificationView({ flags, status }) {
+function VerificationView({ flags, status, reviewedFlags, resolveFlag }) {
   return (
     <div className="verification-container">
       <div className={`verification-banner ${status === "NEEDS_REVIEW" ? "banner-warning" : "banner-pass"}`}>
@@ -355,14 +475,27 @@ function VerificationView({ flags, status }) {
       </div>
       {flags.length > 0 ? (
         <div className="flags-list">
-          {flags.map((f) => (
-            <div key={f.id} className="flag-card">
-              <span className={`flag-status ${f.status === "NEEDS_REVIEW" ? "status-warning" : "status-error"}`}>{f.status}</span>
-              <strong>Check: {f.check_type}</strong>
-              <p>{f.justification}</p>
-              <small>Confidence Score: {confidence(f.confidence_score)}</small>
-            </div>
-          ))}
+          {flags.map((f) => {
+            const review = reviewedFlags[f.id];
+            return (
+              <div key={f.id} className="flag-card">
+                <span className={`flag-status ${f.status === "NEEDS_REVIEW" ? "status-warning" : "status-error"}`}>{f.status}</span>
+                <strong>Check: {f.check_type}</strong>
+                <p>{f.justification}</p>
+                <small>Confidence Score: {confidence(f.confidence_score)}</small>
+                <div className="review-actions">
+                  {review ? (
+                    <span>Locally marked {review}; the stored report is unchanged.</span>
+                  ) : (
+                    <>
+                      <button onClick={() => resolveFlag(f.id, "approved")}>Approve</button>
+                      <button onClick={() => resolveFlag(f.id, "rejected")}>Reject</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <p style={{ marginTop: "14px", color: "#76d7a5" }}>✓ No safety contraindications, dosage contradictions, or OCR uncertainties detected.</p>

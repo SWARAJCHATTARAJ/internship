@@ -200,7 +200,7 @@ class OCRAgent:
             line_idx = (data.get("block_num", [0])[index], data.get("line_num", [0])[index])
             lines_map.setdefault(line_idx, []).append(word)
             confidences.append(min(confidence, 1.0))
-        
+
         page_text = "\n".join(" ".join(line_words) for line_words in lines_map.values()) if lines_map else " ".join(words)
         return OCRPage(
             page_number=page_number, text=page_text,

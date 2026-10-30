@@ -50,6 +50,8 @@ dataset/
 data/*.db
 *.db
 *.log
+internship/models/
+internship/data/
 
 # Environment files / secrets
 .env
@@ -59,9 +61,6 @@ data/*.db
 # Node
 node_modules/
 frontend/node_modules/
-
-# Tests and temporary artifacts
-.pytest_cache/
 
 # Local temporary files
 tmp_fastapi/

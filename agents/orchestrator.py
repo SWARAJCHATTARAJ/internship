@@ -19,7 +19,7 @@ def orchestrator_node(state: ReportState) -> dict:
     complex_document = bool(
         (analysis and (analysis.requires_ocr or analysis.document_type == "prescription"))
         or len(text.split()) > 30
-        or any(k in text for k in ("prescription", "diagnos", "history", "medication", "lab", "procedure"))
+        or any(k in text for k in ("prescription", "medication", "lab", "procedure", "diagnos", "history"))
     )
     has_medication_signal = any(k in text for k in (
         "mg", "tablet", "capsule", "medicine", "metformin", "paracetamol", "cetirizine", "amoxicillin",
@@ -82,7 +82,9 @@ class SimpleGraph:
             }))
             state = self._apply_update(state, {"replan_count": state.replan_count + 1, "audit_trail": audit})
             for agent_name in ("ner_agent", "medication_agent", "clinical_context_agent", "relation_agent", "verifier_agent"):
-                if agent_name in state.execution_plan:
+                if agent_name in state.execution_plan or (
+                    agent_name == "medication_agent" and "drug_agent" in state.execution_plan
+                ):
                     state = self._apply_update(state, self.node_map[agent_name](state))
             unresolved = [flag for flag in state.verifier_flags if not flag.resolved]
 

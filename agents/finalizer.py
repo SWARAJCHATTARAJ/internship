@@ -11,9 +11,14 @@ def finalizer_agent(state: ReportState) -> dict:
         for entity in entities
     }
     grounded = [entity.model_dump() for entity in entities if entity.grounding]
+    routing_event = next(
+        (event for event in reversed(state.audit_trail) if event.action_type == "ROUTING_DECISION"),
+        None,
+    )
     agent_outputs = {
         "document": state.document_analysis.model_dump() if state.document_analysis else {},
         "ocr": state.ocr_result.model_dump() if state.ocr_result else None,
+        "orchestrator": routing_event.details if routing_event else {"plan": state.execution_plan},
         "ner": [entity.model_dump() for entity in entities],
         "medication": [record.model_dump() for record in state.medications],
         "clinical_context": state.clinical_context,
@@ -23,8 +28,14 @@ def finalizer_agent(state: ReportState) -> dict:
         "summary": state.summary,
         "verifier": {"status": "HITL_REQUIRED" if unresolved else "PASS", "flags": [flag.model_dump() for flag in flags]},
     }
+    # Include orchestrator information (routing decision / plan) so the trace has a meaningful output
+    orchestrator_events = [e.model_dump() for e in state.audit_trail if e.agent_name == "orchestrator"]
+    agent_outputs["orchestrator"] = orchestrator_events[-1] if orchestrator_events else {"plan": state.execution_plan}
     trace_order = ["document", "ocr", "orchestrator", "ner", "medication", "clinical_context", "relation", "timeline", "grounding", "summary", "verifier"]
-    plan_names = {name.replace("_agent", "") for name in state.execution_plan}
+    plan_names = {
+        "medication" if name == "drug_agent" else name.replace("_agent", "")
+        for name in state.execution_plan
+    }
     if state.ocr_result:
         plan_names.add("ocr")
     trace = []
